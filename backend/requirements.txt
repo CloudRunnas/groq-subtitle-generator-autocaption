@@ -7,4 +7,8 @@ python-dotenv==1.0.0
 pydantic==2.5.0
 pydantic-settings==2.1.0
 pysrt==1.1.2
-webvtt-py==0.4.6 
+webvtt-py==0.4.6
+# Karaoke forced alignment (WhisperX uses wav2vec2; do NOT rely on removed torchaudio.forced_align)
+whisperx>=3.3.0
+torch
+torchaudio

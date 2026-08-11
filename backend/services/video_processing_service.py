@@ -10,6 +10,8 @@ from contextlib import asynccontextmanager
 from services.transcription_service import TranscriptionService
 from services.translation_service import TranslationService
 from services.subtitle_service import SubtitleService
+from services.alignment_service import AlignmentService
+from services.karaoke_service import KaraokeService
 from models.requests import TranscriptionResult
 from utils.config import get_settings
 
@@ -21,6 +23,9 @@ class VideoProcessingService:
         self.transcription_service = TranscriptionService()
         self.translation_service = TranslationService()
         self.subtitle_service = SubtitleService()
+        self.alignment_service = AlignmentService()
+        self.karaoke_service = KaraokeService()
+        self.alignment_service._device = self.settings.whisperx_device
 
     @asynccontextmanager
     async def temporary_file(self, suffix: str = ""):
@@ -118,12 +123,19 @@ class VideoProcessingService:
             raise
 
     async def _render_video_to_bytes(self, video_path: str, subtitle_path: str) -> bytes:
-        """render video with subtitles and return as bytes"""
+        """render video with subtitles (SRT or ASS) and return as bytes"""
         try:
             async with self.temporary_file(suffix=".mp4") as temp_output_path:
+                # Escape path for ffmpeg subtitles filter (esp. Windows / special chars)
+                escaped_sub = (
+                    subtitle_path
+                    .replace("\\", "/")
+                    .replace(":", "\\:")
+                    .replace("'", "\\'")
+                )
                 cmd = [
                     'ffmpeg', '-i', video_path,
-                    '-vf', f'subtitles={subtitle_path}',
+                    '-vf', f"subtitles='{escaped_sub}'",
                     '-c:a', 'copy',
                     '-c:v', 'libx264',
                     '-y', temp_output_path
@@ -150,6 +162,61 @@ class VideoProcessingService:
         except Exception as e:
             logger.error(f"error rendering video: {str(e)}")
             raise
+
+    async def render_with_karaoke(
+        self,
+        video_data: bytes,
+        word_timings: list,
+    ) -> bytes:
+        """Render video with karaoke ASS burned in."""
+        video_size = await self.get_video_dimensions(video_data)
+        ass_content = self.karaoke_service.generate_ass_content(
+            word_timings,
+            video_size=video_size,
+        )
+        async with self.temporary_file(suffix=".mp4") as temp_video_path:
+            with open(temp_video_path, 'wb') as f:
+                f.write(video_data)
+            async with self.temporary_file(suffix=".ass") as temp_ass_path:
+                with open(temp_ass_path, 'w', encoding='utf-8') as f:
+                    f.write(ass_content)
+                return await self._render_video_to_bytes(temp_video_path, temp_ass_path)
+
+    async def get_video_dimensions(self, video_data: bytes):
+        """Return (width, height) of the primary video stream."""
+        try:
+            info = await self.get_video_info(video_data)
+            for stream in info.get("streams", []):
+                if stream.get("codec_type") == "video":
+                    width = int(stream.get("width") or 0)
+                    height = int(stream.get("height") or 0)
+                    if width > 0 and height > 0:
+                        return width, height
+        except Exception as e:
+            logger.warning(f"Could not probe video dimensions, using 1920x1080: {e}")
+        return 1920, 1080
+
+    async def align_and_build_karaoke(
+        self,
+        video_data: bytes,
+        cue_segments: list,
+        language_code: str = "de",
+    ) -> list:
+        """
+        Extract audio, run WhisperX alignment, return word timings.
+        cue_segments: list of {text, start, end}
+        """
+        async with self.temporary_file(suffix=".mp4") as temp_video_path:
+            with open(temp_video_path, 'wb') as f:
+                f.write(video_data)
+            async with self.temporary_file(suffix=".wav") as temp_audio_path:
+                await self._extract_audio(temp_video_path, temp_audio_path)
+                return await self.alignment_service.align_segments(
+                    temp_audio_path,
+                    cue_segments,
+                    language_code=language_code,
+                    release_after=True,
+                )
 
     async def get_video_info(self, video_data: bytes) -> Dict:
         """Get video information from bytes"""

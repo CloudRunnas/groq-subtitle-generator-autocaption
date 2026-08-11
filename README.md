@@ -12,6 +12,8 @@ https://github.com/user-attachments/assets/08ebc0af-4a5e-40a3-affa-8652bedfd6f4
 - **Video Processing**: Supports MP4, MOV, AVI
 - **Burned-in Subtitles**: Create videos with permanently embedded subtitles
 - **Edit Before Translation**: Review and edit transcription for perfect accuracy
+- **Karaoke Subtitles**: Word-level highlighting via WhisperX forced alignment (recommended for German), burned into the video and shown as a live preview overlay
+- **SRT Burn Mode**: Upload an existing SRT with your video to skip transcription
 
 ## 🛠️ Tech Stack
 
@@ -19,6 +21,8 @@ https://github.com/user-attachments/assets/08ebc0af-4a5e-40a3-affa-8652bedfd6f4
 - **FastAPI**
 - **Groq API**
 - **FFmpeg**
+- **WhisperX** (forced alignment / karaoke)
+- **PyTorch + TorchAudio** (CPU-friendly align models; not the removed `forced_align` API)
 - **Pydantic**
 
 ### Frontend
@@ -30,10 +34,11 @@ https://github.com/user-attachments/assets/08ebc0af-4a5e-40a3-affa-8652bedfd6f4
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.8+
+- Python 3.10+ recommended (3.8+ may work for core API; WhisperX prefers newer Python)
 - Node.js 18+
-- FFmpeg installed
+- FFmpeg installed (with `libass` for ASS karaoke burn-in)
 - Groq API key (get free access at [groq.com](https://groq.com))
+- ~2–3 GB free RAM for WhisperX align models on CPU
 
 ### Install FFmpeg
 
@@ -139,22 +144,48 @@ GROQ_API_KEY=your_groq_api_key_here
 # Model Selection (optional)
 GROQ_MODEL=qwen/qwen3-32b
 GROQ_WHISPER_MODEL=whisper-large-v3  # Options: whisper-large-v3, whisper-large-v3-turbo, distil-whisper-large-v3-en
+
+# Karaoke / WhisperX alignment (optional)
+KARAOKE_ENABLED_DEFAULT=true
+KARAOKE_WINDOW_SIZE=5
+WHISPERX_DEVICE=cpu
+
+# Karaoke layout as fractions of the video frame (0–1)
+SUBTITLE_WIDTH_PCT=0.80
+SUBTITLE_HORIZONTAL_MARGIN_PCT=0.10
+SUBTITLE_VERTICAL_MARGIN_PCT=0.05
+SUBTITLE_HEIGHT_PCT=0.15
 ```
+
+### WhisperX / Karaoke notes
+
+- Karaoke uses **WhisperX `align()`** with your SRT (or generated cues) as reference text — no second transcription.
+- German is supported via language-specific wav2vec2 align models (`language_code=de`).
+- After alignment you can **download `word_timings.json`** and later re-upload it with a video (**Burn from Word Timings**) to skip alignment.
+- First run downloads align model weights (can take a few minutes).
+- On CPU laptops (e.g. ThinkPad X260), aligning ~1:30 of audio often takes **about 2–5 minutes** after the model is loaded; cold start adds model load time.
+- Install backend deps with enough disk for PyTorch + WhisperX:
+  ```bash
+  cd backend && source venv/bin/activate
+  pip install -r requirements.txt
+  ```
+- TorchAudio’s old `forced_align` / `MMS_FA` helper APIs are deprecated/removed in recent TorchAudio versions; this project intentionally uses WhisperX instead.
 
 ## 🎬 Usage Workflow
 
 1. **📤 Upload Video**: Drag and drop or select a video file
-2. **🌐 Configure Languages**: 
-   - Source language
+2. **🎤 Optional Burn Mode**: Enable “Burn Video Subtitles (SRT)” and upload an SRT to skip transcription
+3. **⏩ Optional Word-Timings Burn**: Enable “Burn from Word Timings” and upload a previously downloaded `word_timings.json` to skip alignment
+4. **🎤 Optional Karaoke**: Keep “Karaoke Subtitles” on for word-level highlight + running text window
+5. **🌐 Configure Languages**: 
+   - Source / SRT language
    - Target language for subtitles
-3. **🎵 Transcription**: Whisper transcribes the audio with timestamps
-4. **✏️ Edit & Review**: Review and edit transcription for perfect accuracy
-   - Edit individual segments with timestamps
-   - Ensure quality before translation
-5. **🔄 Translation**: Qwen3-32b translates to your target language
-6. **🎬 Generation**: Create subtitled video with burned-in subtitles
-7. **📥 Download**: Get your subtitled video
-
+6. **🎵 Transcription** (generate mode): Whisper transcribes the audio with timestamps
+7. **✏️ Edit & Review**: Review and edit transcription for perfect accuracy
+8. **🔄 Translation**: Qwen3-32b translates when source ≠ target
+9. **🎯 Alignment** (karaoke): WhisperX aligns words to audio
+10. **🎬 Generation**: Burn SRT or karaoke ASS into the video
+11. **👀 Preview / Download**: Live karaoke overlay, download video, and download word timings JSON
 
 ## 🔍 Troubleshooting
 

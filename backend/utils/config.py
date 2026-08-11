@@ -96,6 +96,16 @@ class Settings(BaseSettings):
     subtitle_color: str = os.getenv("SUBTITLE_COLOR", "white")
     subtitle_outline_color: str = os.getenv("SUBTITLE_OUTLINE_COLOR", "black")
     subtitle_outline_width: int = int(os.getenv("SUBTITLE_OUTLINE_WIDTH", "2"))
+    karaoke_window_size: int = int(os.getenv("KARAOKE_WINDOW_SIZE", "5"))
+    karaoke_enabled_default: bool = os.getenv("KARAOKE_ENABLED_DEFAULT", "true").lower() in (
+        "1", "true", "yes", "on"
+    )
+    whisperx_device: str = os.getenv("WHISPERX_DEVICE", "cpu")
+    # Karaoke layout as fractions of video frame (0–1)
+    subtitle_width_pct: float = float(os.getenv("SUBTITLE_WIDTH_PCT", "0.80"))
+    subtitle_horizontal_margin_pct: float = float(os.getenv("SUBTITLE_HORIZONTAL_MARGIN_PCT", "0.10"))
+    subtitle_vertical_margin_pct: float = float(os.getenv("SUBTITLE_VERTICAL_MARGIN_PCT", "0.05"))
+    subtitle_height_pct: float = float(os.getenv("SUBTITLE_HEIGHT_PCT", "0.15"))
     
     class Config:
         env_file = ".env"

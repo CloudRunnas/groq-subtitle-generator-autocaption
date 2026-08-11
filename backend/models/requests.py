@@ -9,9 +9,20 @@ class ProcessingStatus(str, Enum):
     TRANSCRIBING = "transcribing"
     TRANSLATING = "translating"
     GENERATING_SUBTITLES = "generating_subtitles"
+    ALIGNING = "aligning"
+    GENERATING_KARAOKE = "generating_karaoke"
     RENDERING_VIDEO = "rendering_video"
     COMPLETED = "completed"
     FAILED = "failed"
+
+
+class WordTiming(BaseModel):
+    word: str
+    start: float
+    end: float
+    score: Optional[float] = None
+    cue_index: Optional[int] = None
+    aligned: Optional[bool] = True
 
 class ProcessVideoRequest(BaseModel):
     target_language: str
