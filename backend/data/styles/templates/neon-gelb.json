@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "name": "Neon Gelb",
+  "slug": "neon-gelb",
+  "fontS3Key": "fonts/Ubuntu-B.ttf",
+  "fontName": "Ubuntu-B",
+  "strokeColor": "#000000",
+  "strokeWidth": 4.0,
+  "spokenText": {
+    "color": "#FFFFFF",
+    "formatting": "bold",
+    "strokeColor": "#000000",
+    "strokeWidth": 4.0
+  },
+  "activeText": {
+    "color": "#F7FF00",
+    "formatting": "bold",
+    "strokeColor": "#000000",
+    "strokeWidth": 4.0
+  },
+  "normalText": {
+    "color": "#FFFFFF",
+    "formatting": "normal",
+    "strokeColor": "#000000",
+    "strokeWidth": 4.0
+  },
+  "effects": {
+    "bounce": {
+      "enabled": true,
+      "scalePercent": 135.0,
+      "upMs": 80,
+      "downMs": 100
+    },
+    "outlinePulse": {
+      "enabled": true,
+      "peakWidth": 10.0,
+      "upMs": 100,
+      "downMs": 120
+    }
+  }
+}

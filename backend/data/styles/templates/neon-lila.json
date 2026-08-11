@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "name": "Neon Lila",
+  "slug": "neon-lila",
+  "fontS3Key": "fonts/Ubuntu-B.ttf",
+  "fontName": "Ubuntu-B",
+  "strokeColor": "#000000",
+  "strokeWidth": 5.0,
+  "spokenText": {
+    "color": "#FFFFFF",
+    "formatting": "bold",
+    "strokeColor": "#000000",
+    "strokeWidth": 5.0
+  },
+  "activeText": {
+    "color": "#D946EF",
+    "formatting": "bold",
+    "strokeColor": "#000000",
+    "strokeWidth": 5.0
+  },
+  "normalText": {
+    "color": "#FFFFFF",
+    "formatting": "normal",
+    "strokeColor": "#000000",
+    "strokeWidth": 5.0
+  },
+  "effects": {
+    "bounce": {
+      "enabled": true,
+      "scalePercent": 140.0,
+      "upMs": 70,
+      "downMs": 110
+    },
+    "outlinePulse": {
+      "enabled": true,
+      "peakWidth": 12.0,
+      "upMs": 90,
+      "downMs": 130
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "name": "Orange Flat",
+  "slug": "orange-flat",
+  "fontS3Key": "fonts/Ubuntu-R.ttf",
+  "fontName": "Ubuntu-R",
+  "strokeColor": "#000000",
+  "strokeWidth": 3.0,
+  "spokenText": {
+    "color": "#FFFFFF",
+    "formatting": "bold",
+    "strokeColor": "#000000",
+    "strokeWidth": 3.0
+  },
+  "activeText": {
+    "color": "#F97316",
+    "formatting": "bold",
+    "strokeColor": "#000000",
+    "strokeWidth": 3.0
+  },
+  "normalText": {
+    "color": "#FFFFFF",
+    "formatting": "normal",
+    "strokeColor": "#000000",
+    "strokeWidth": 3.0
+  },
+  "effects": {
+    "bounce": {
+      "enabled": false,
+      "scalePercent": 135.0,
+      "upMs": 80,
+      "downMs": 100
+    },
+    "outlinePulse": {
+      "enabled": false,
+      "peakWidth": 10.0,
+      "upMs": 100,
+      "downMs": 120
+    }
+  }
+}

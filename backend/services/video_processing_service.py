@@ -122,7 +122,12 @@ class VideoProcessingService:
             logger.error(f"Error extracting audio: {str(e)}")
             raise
 
-    async def _render_video_to_bytes(self, video_path: str, subtitle_path: str) -> bytes:
+    async def _render_video_to_bytes(
+        self,
+        video_path: str,
+        subtitle_path: str,
+        fonts_dir: Optional[str] = None,
+    ) -> bytes:
         """render video with subtitles (SRT or ASS) and return as bytes"""
         try:
             async with self.temporary_file(suffix=".mp4") as temp_output_path:
@@ -133,9 +138,17 @@ class VideoProcessingService:
                     .replace(":", "\\:")
                     .replace("'", "\\'")
                 )
+                vf = f"subtitles='{escaped_sub}'"
+                if fonts_dir:
+                    escaped_fonts = (
+                        fonts_dir.replace("\\", "/")
+                        .replace(":", "\\:")
+                        .replace("'", "\\'")
+                    )
+                    vf = f"subtitles='{escaped_sub}':fontsdir='{escaped_fonts}'"
                 cmd = [
                     'ffmpeg', '-i', video_path,
-                    '-vf', f"subtitles='{escaped_sub}'",
+                    '-vf', vf,
                     '-c:a', 'copy',
                     '-c:v', 'libx264',
                     '-y', temp_output_path
@@ -167,12 +180,15 @@ class VideoProcessingService:
         self,
         video_data: bytes,
         word_timings: list,
+        style_template=None,
+        fonts_dir: Optional[str] = None,
     ) -> bytes:
         """Render video with karaoke ASS burned in."""
         video_size = await self.get_video_dimensions(video_data)
         ass_content = self.karaoke_service.generate_ass_content(
             word_timings,
             video_size=video_size,
+            style_template=style_template,
         )
         async with self.temporary_file(suffix=".mp4") as temp_video_path:
             with open(temp_video_path, 'wb') as f:
@@ -180,7 +196,11 @@ class VideoProcessingService:
             async with self.temporary_file(suffix=".ass") as temp_ass_path:
                 with open(temp_ass_path, 'w', encoding='utf-8') as f:
                     f.write(ass_content)
-                return await self._render_video_to_bytes(temp_video_path, temp_ass_path)
+                return await self._render_video_to_bytes(
+                    temp_video_path,
+                    temp_ass_path,
+                    fonts_dir=fonts_dir,
+                )
 
     async def get_video_dimensions(self, video_data: bytes):
         """Return (width, height) of the primary video stream."""

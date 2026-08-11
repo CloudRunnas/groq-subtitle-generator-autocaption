@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Private S3 bucket for autocaption style templates and fonts (no public access, versioning disabled)
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: Globally unique S3 bucket name
+
+Resources:
+  StyleAssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Suspended
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+
+Outputs:
+  BucketName:
+    Value: !Ref StyleAssetsBucket
+  BucketArn:
+    Value: !GetAtt StyleAssetsBucket.Arn

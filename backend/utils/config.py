@@ -117,6 +117,17 @@ class Settings(BaseSettings):
     subtitle_font_size_min: int = int(os.getenv("SUBTITLE_FONT_SIZE_MIN", "18"))
     subtitle_char_width_factor: float = float(os.getenv("SUBTITLE_CHAR_WIDTH_FACTOR", "0.55"))
     subtitle_fit_safety_pct: float = float(os.getenv("SUBTITLE_FIT_SAFETY_PCT", "0.05"))
+    # Style templates / fonts (S3 or local)
+    style_storage: str = os.getenv("STYLE_STORAGE", "local")  # local | s3
+    aws_region: str = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "eu-central-1"))
+    aws_s3_bucket: str = os.getenv("AWS_S3_BUCKET", "")
+    style_local_dir: str = os.getenv("STYLE_LOCAL_DIR", "data/styles")
+    # Jobs / media / auth (AWS Fargate)
+    backend_api_key: str = os.getenv("BACKEND_API_KEY", "")
+    jobs_table_name: str = os.getenv("JOBS_TABLE_NAME", "")
+    media_bucket: str = os.getenv("MEDIA_BUCKET", "")
+    media_local_dir: str = os.getenv("MEDIA_LOCAL_DIR", "data/media")
+    cors_origins: str = os.getenv("CORS_ORIGINS", "http://localhost:3000")
     
     class Config:
         env_file = ".env"

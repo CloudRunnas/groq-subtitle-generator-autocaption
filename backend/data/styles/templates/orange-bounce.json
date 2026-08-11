@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "name": "Orange Bounce ActiveAoB",
+  "slug": "orange-bounce",
+  "fontS3Key": "fonts/Ubuntu-B.ttf",
+  "fontName": "Ubuntu-B",
+  "strokeColor": "#000000",
+  "strokeWidth": 3.0,
+  "spokenText": {
+    "color": "#FFFFFF",
+    "formatting": "bold",
+    "strokeColor": "#000000",
+    "strokeWidth": 3.0
+  },
+  "activeText": {
+    "color": "#F97316",
+    "formatting": "bold",
+    "strokeColor": "#000000",
+    "strokeWidth": 3.0
+  },
+  "normalText": {
+    "color": "#FFFFFF",
+    "formatting": "normal",
+    "strokeColor": "#000000",
+    "strokeWidth": 1.0
+  },
+  "effects": {
+    "bounce": {
+      "enabled": true,
+      "scalePercent": 135.0,
+      "upMs": 80,
+      "downMs": 100
+    },
+    "outlinePulse": {
+      "enabled": false,
+      "peakWidth": 8.0,
+      "upMs": 100,
+      "downMs": 120
+    }
+  }
+}

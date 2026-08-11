@@ -1,0 +1,17 @@
+[Script Info]
+Title: Effect Demo
+ScriptType: v4.00+
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+PlayResX: 720
+PlayResY: 1280
+YCbCr Matrix: None
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Karaoke,Arial,69,&H00FFFFFF,&H001673F9,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,4,0,2,0,0,64,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.44,0:00:02.12,Karaoke,,0,0,0,,{\rKaraoke}{\ko18\bord6}Hallo, {\ko8\bord6}ich {\ko20\bord6}bin {\ko98\bord6}Mike.
+Dialogue: 0,0:00:02.00,0:00:03.58,Karaoke,,0,0,0,,{\rKaraoke}{\ko14\bord6}Ich {\ko20\bord6}leite {\ko16\bord6}unter {\ko66\bord6}Schizophrenie {\ko12\bord6}und

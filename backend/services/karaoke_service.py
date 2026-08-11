@@ -17,7 +17,7 @@ class KaraokeStyle:
     highlight_color: str = "&H001673F9"    # orange accent ~#F97316
     outline_color: str = "&H00000000"      # black
     back_color: str = "&H80000000"
-    outline: int = 3
+    outline: float = 3
     shadow: int = 0
     alignment: int = 2  # bottom-center
     margin_l: int = 192
@@ -25,7 +25,7 @@ class KaraokeStyle:
     margin_v: int = 54
     play_res_x: int = 1920
     play_res_y: int = 1080
-    bold: int = 1
+    bold: int = 0  # per-role formatting via override tags
 
 
 class KaraokeService:
@@ -37,7 +37,108 @@ class KaraokeService:
             font_name=self.settings.subtitle_font or "Arial",
             font_size=max(self.settings.subtitle_font_size, 36),
         )
+        self.style_template = None  # optional StyleTemplate
         self.apply_layout_from_resolution(self.style.play_res_x, self.style.play_res_y)
+
+    @staticmethod
+    def hex_to_ass(hex_color: str, alpha: str = "00") -> str:
+        """Convert #RRGGBB to ASS &HAABBGGRR."""
+        h = (hex_color or "#FFFFFF").lstrip("#")
+        if len(h) != 6:
+            h = "FFFFFF"
+        rr, gg, bb = h[0:2], h[2:4], h[4:6]
+        return f"&H{alpha}{bb}{gg}{rr}".upper()
+
+    def apply_style_template(self, template) -> None:
+        """Apply a StyleTemplate to KaraokeStyle defaults (colors/font/stroke)."""
+        self.style_template = template
+        if not template:
+            return
+        self.style.primary_color = self.hex_to_ass(template.normalText.color)
+        self.style.highlight_color = self.hex_to_ass(template.activeText.color)
+        self.style.outline_color = self.hex_to_ass(template.strokeColor)
+        self.style.outline = float(template.strokeWidth)
+        self.style.bold = 0
+        if template.fontName:
+            self.style.font_name = template.fontName
+        elif template.fontS3Key:
+            # ASS Fontname is typically the face name; use file stem as best effort
+            from pathlib import Path
+            self.style.font_name = Path(template.fontS3Key).stem
+
+    @staticmethod
+    def _formatting_tags(formatting: str) -> str:
+        f = (formatting or "normal").lower()
+        bold = "1" if f in ("bold", "bold_italic") else "0"
+        italic = "1" if f in ("italic", "bold_italic") else "0"
+        return f"\\b{bold}\\i{italic}"
+
+    def _role_for_index(self, index: int, active_local_index: int):
+        tmpl = self.style_template
+        if not tmpl:
+            return None
+        if index < active_local_index:
+            return tmpl.spokenText
+        if index == active_local_index:
+            return tmpl.activeText
+        return tmpl.normalText
+
+    def _role_tags(self, role, is_active: bool) -> str:
+        """Build ASS override tags for a text role (no trailing reset)."""
+        base_stroke = float(self.style.outline)
+        base_stroke_color = self.style.outline_color
+        if role is None:
+            # Legacy fallback without template
+            if is_active:
+                return (
+                    f"\\c{self.style.highlight_color}&"
+                    f"{self._formatting_tags('bold')}"
+                    f"\\bord{base_stroke}\\3c{base_stroke_color}&"
+                    f"{self._active_effect_tags(base_stroke)}"
+                )
+            return (
+                f"\\c{self.style.primary_color}&"
+                f"{self._formatting_tags('normal')}"
+                f"\\bord{base_stroke}\\3c{base_stroke_color}&"
+            )
+
+        color = self.hex_to_ass(role.color)
+        stroke_w = float(role.strokeWidth) if role.strokeWidth is not None else base_stroke
+        stroke_c = self.hex_to_ass(role.strokeColor) if role.strokeColor else base_stroke_color
+        tags = (
+            f"\\c{color}&"
+            f"{self._formatting_tags(role.formatting)}"
+            f"\\bord{stroke_w}\\3c{stroke_c}&"
+        )
+        if is_active:
+            tags += self._active_effect_tags(stroke_w)
+        return tags
+
+    def _active_effect_tags(self, base_bord: float) -> str:
+        """Bounce + outline pulse for activeText only (no hardcoded colors)."""
+        tmpl = self.style_template
+        if not tmpl:
+            return ""
+        parts = []
+        bounce = tmpl.effects.bounce
+        pulse = tmpl.effects.outlinePulse
+        if bounce.enabled:
+            scale = max(100.0, float(bounce.scalePercent))
+            up = max(0, int(bounce.upMs))
+            down = max(0, int(bounce.downMs))
+            parts.append(
+                f"\\t(0,{up},\\fscy{scale:.0f}\\fscx{scale:.0f})"
+                f"\\t({up},{up + down},\\fscy100\\fscx100)"
+            )
+        if pulse.enabled:
+            peak = max(float(base_bord), float(pulse.peakWidth))
+            up = max(0, int(pulse.upMs))
+            down = max(0, int(pulse.downMs))
+            parts.append(
+                f"\\t(0,{up},\\bord{peak})"
+                f"\\t({up},{up + down},\\bord{base_bord})"
+            )
+        return "".join(parts)
 
     def _cue_limits(self) -> Tuple[int, int]:
         min_w = max(1, int(self.settings.karaoke_cue_min_words))
@@ -383,20 +484,17 @@ class KaraokeService:
         return indices or [list(range(len(cue_words)))]
 
     def _format_cue_line(self, cue_words: List[Dict[str, Any]], active_local_index: int) -> str:
-        """Format cue with karaoke colors and hard line breaks matching the fit wrap."""
-        style = self.style
+        """Format cue with per-role styles, active effects, and hard wraps."""
         line_groups = self._wrap_cue_word_indices(cue_words)
         ass_lines = []
         for group in line_groups:
             parts = []
             for i in group:
                 token = self._escape_ass_text(str(cue_words[i].get("word") or ""))
-                if i == active_local_index:
-                    parts.append(
-                        f"{{\\c{style.highlight_color}&\\b1}}{token}{{\\c{style.primary_color}&\\b0}}"
-                    )
-                else:
-                    parts.append(f"{{\\c{style.primary_color}&}}{token}")
+                role = self._role_for_index(i, active_local_index)
+                is_active = i == active_local_index
+                tags = self._role_tags(role, is_active=is_active)
+                parts.append(f"{{{tags}}}{token}")
             ass_lines.append(" ".join(parts))
         return "\\N".join(ass_lines)
 
@@ -404,13 +502,20 @@ class KaraokeService:
         self,
         word_timings: List[Dict[str, Any]],
         video_size: Optional[Tuple[int, int]] = None,
+        style_template=None,
     ) -> str:
         """
         Create ASS with cue-based dialogue events.
         Full cue text stays visible; highlight advances word-by-word inside the cue.
         """
+        if style_template is not None:
+            self.apply_style_template(style_template)
+
         if video_size:
             self.apply_layout_from_resolution(video_size[0], video_size[1])
+            # Re-apply template stroke/font after layout (layout may reset font max only)
+            if self.style_template:
+                self.apply_style_template(self.style_template)
 
         if not word_timings:
             return self._ass_header() + "\n"
@@ -445,8 +550,9 @@ class KaraokeService:
                 event_count += 1
 
         logger.info(
-            "Generated karaoke ASS with %s events across %s cues",
+            "Generated karaoke ASS with %s events across %s cues (template=%s)",
             event_count, len(cues),
+            getattr(self.style_template, "name", None),
         )
         return "\n".join(lines) + "\n"
 
@@ -455,7 +561,7 @@ class KaraokeService:
         style_line = (
             f"Style: Karaoke,{s.font_name},{s.font_size},"
             f"{s.primary_color},{s.highlight_color},{s.outline_color},{s.back_color},"
-            f"{s.bold},0,0,0,100,100,0,0,1,{s.outline},{s.shadow},{s.alignment},"
+            f"{s.bold},0,0,0,100,100,0,0,1,{int(round(float(s.outline)))},{s.shadow},{s.alignment},"
             f"{s.margin_l},{s.margin_r},{s.margin_v},1"
         )
         return "\n".join([

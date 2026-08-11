@@ -1,0 +1,24 @@
+[Script Info]
+Title: Effect Demo
+ScriptType: v4.00+
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+PlayResX: 720
+PlayResY: 1280
+YCbCr Matrix: None
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Karaoke,Arial,69,&H00FFFFFF,&H001673F9,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,4,0,2,0,0,64,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.44,0:00:00.66,Karaoke,,0,0,0,,{\fad(180,0)}{\c&H001673F9&\b1}Hallo,{\c&H00FFFFFF&\b0\bord4\blur0\fscx100\fscy100} {\c&H00FFFFFF&}ich {\c&H00FFFFFF&}bin\N{\c&H00FFFFFF&}Mike.
+Dialogue: 0,0:00:00.66,0:00:00.76,Karaoke,,0,0,0,,{\c&H00FFFFFF&}Hallo, {\c&H001673F9&\b1}ich{\c&H00FFFFFF&\b0\bord4\blur0\fscx100\fscy100} {\c&H00FFFFFF&}bin\N{\c&H00FFFFFF&}Mike.
+Dialogue: 0,0:00:00.76,0:00:00.98,Karaoke,,0,0,0,,{\c&H00FFFFFF&}Hallo, {\c&H00FFFFFF&}ich {\c&H001673F9&\b1}bin{\c&H00FFFFFF&\b0\bord4\blur0\fscx100\fscy100}\N{\c&H00FFFFFF&}Mike.
+Dialogue: 0,0:00:00.98,0:00:01.97,Karaoke,,0,0,0,,{\c&H00FFFFFF&}Hallo, {\c&H00FFFFFF&}ich {\c&H00FFFFFF&}bin\N{\c&H001673F9&\b1}Mike.{\c&H00FFFFFF&\b0\bord4\blur0\fscx100\fscy100}
+Dialogue: 0,0:00:02.00,0:00:02.19,Karaoke,,0,0,0,,{\fad(180,0)}{\c&H001673F9&\b1}Ich{\c&H00FFFFFF&\b0\bord4\blur0\fscx100\fscy100} {\c&H00FFFFFF&}leite {\c&H00FFFFFF&}unter\N{\c&H00FFFFFF&}Schizophrenie {\c&H00FFFFFF&}und
+Dialogue: 0,0:00:02.21,0:00:02.45,Karaoke,,0,0,0,,{\c&H00FFFFFF&}Ich {\c&H001673F9&\b1}leite{\c&H00FFFFFF&\b0\bord4\blur0\fscx100\fscy100} {\c&H00FFFFFF&}unter\N{\c&H00FFFFFF&}Schizophrenie {\c&H00FFFFFF&}und
+Dialogue: 0,0:00:02.45,0:00:02.63,Karaoke,,0,0,0,,{\c&H00FFFFFF&}Ich {\c&H00FFFFFF&}leite {\c&H001673F9&\b1}unter{\c&H00FFFFFF&\b0\bord4\blur0\fscx100\fscy100}\N{\c&H00FFFFFF&}Schizophrenie {\c&H00FFFFFF&}und
+Dialogue: 0,0:00:02.63,0:00:03.31,Karaoke,,0,0,0,,{\c&H00FFFFFF&}Ich {\c&H00FFFFFF&}leite {\c&H00FFFFFF&}unter\N{\c&H001673F9&\b1}Schizophrenie{\c&H00FFFFFF&\b0\bord4\blur0\fscx100\fscy100} {\c&H00FFFFFF&}und
+Dialogue: 0,0:00:03.31,0:00:03.43,Karaoke,,0,0,0,,{\c&H00FFFFFF&}Ich {\c&H00FFFFFF&}leite {\c&H00FFFFFF&}unter\N{\c&H00FFFFFF&}Schizophrenie {\c&H001673F9&\b1}und{\c&H00FFFFFF&\b0\bord4\blur0\fscx100\fscy100}

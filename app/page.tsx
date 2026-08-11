@@ -1,6 +1,8 @@
 'use client'
 import React, { useState, useCallback, useRef, memo, useEffect } from 'react'
 import { Upload, Play, Download, Globe, Clock, FileText, CheckCircle, AlertCircle, Eye } from 'lucide-react'
+import StyleTemplatePanel from './components/StyleTemplatePanel'
+import { API_BASE, apiFetch, getStoredApiKey, setStoredApiKey, warmupBackend } from './lib/api'
 
 //types for managing the status and file info
 interface JobStatus {
@@ -246,6 +248,8 @@ export default function VideoSubtitleGenerator() {
   const [burnSubtitles, setBurnSubtitles] = useState(false)
   const [burnFromWordTimings, setBurnFromWordTimings] = useState(false)
   const [karaokeEnabled, setKaraokeEnabled] = useState(true)
+  const [styleTemplateSlug, setStyleTemplateSlug] = useState('')
+  const [apiKey, setApiKey] = useState('')
   const [targetLanguage, setTargetLanguage] = useState<string>('en')
   const [sourceLanguage, setSourceLanguage] = useState<string>('')
   const [jobId, setJobId] = useState<string>('')
@@ -405,6 +409,7 @@ export default function VideoSubtitleGenerator() {
 
     setIsUploading(true)
     setError('')
+    void warmupBackend()
 
     try {
       const formData = new FormData()
@@ -418,7 +423,7 @@ export default function VideoSubtitleGenerator() {
         formData.append('word_timings_file', selectedWordTimingsFile)
       }
 
-      const response = await fetch('http://localhost:8000/upload', {
+      const response = await apiFetch('/upload', {
         method: 'POST',
         body: formData,
       })
@@ -457,6 +462,9 @@ export default function VideoSubtitleGenerator() {
 
       // Always send at least one form field — empty FormData breaks multipart parsing (400)
       formData.append('karaoke', (isBurnWords || karaokeEnabled) ? 'true' : 'false')
+      if (styleTemplateSlug) {
+        formData.append('style_template_slug', styleTemplateSlug)
+      }
 
       if (!isBurnWords) {
         formData.append('target_language', targetLanguage)
@@ -467,7 +475,7 @@ export default function VideoSubtitleGenerator() {
         }
       }
 
-      const response = await fetch(`http://localhost:8000/process/${jobId}`, {
+      const response = await apiFetch(`/process/${jobId}`, {
         method: 'POST',
         body: formData,
       })
@@ -487,11 +495,11 @@ export default function VideoSubtitleGenerator() {
       setError(err instanceof Error ? err.message : 'Processing failed')
       setIsProcessing(false)
     }
-  }, [targetLanguage, sourceLanguage, fileInfo, burnSubtitles, burnFromWordTimings, karaokeEnabled])
+  }, [targetLanguage, sourceLanguage, fileInfo, burnSubtitles, burnFromWordTimings, karaokeEnabled, styleTemplateSlug])
 
   const fetchWordTimings = useCallback(async (id: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/word-timings/${id}`)
+      const response = await apiFetch(`/word-timings/${id}`)
       if (!response.ok) {
         setWordTimings([])
         return
@@ -518,7 +526,7 @@ export default function VideoSubtitleGenerator() {
   const pollStatus = useCallback(async (jobId: string) => {
     const poll = async () => {
       try {
-        const response = await fetch(`http://localhost:8000/status/${jobId}`)
+        const response = await apiFetch(`/status/${jobId}`)
         if (response.ok) {
           const status = await response.json()
           setJobStatus(status)
@@ -550,7 +558,7 @@ export default function VideoSubtitleGenerator() {
 
   const fetchTranscription = useCallback(async (jobId: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/transcription/${jobId}`)
+      const response = await apiFetch(`/transcription/${jobId}`)
       if (response.ok) {
         const data = await response.json()
         setTranscription(data.transcription)
@@ -566,7 +574,7 @@ export default function VideoSubtitleGenerator() {
       setIsEditingTranscription(false)
       setIsProcessing(true)
       
-      const response = await fetch(`http://localhost:8000/transcription/${jobId}/continue`, {
+      const response = await apiFetch(`/transcription/${jobId}/continue`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -649,7 +657,7 @@ export default function VideoSubtitleGenerator() {
     if (!jobId) return
     
     try {
-      const response = await fetch(`http://localhost:8000/download/${jobId}`)
+      const response = await apiFetch(`/download/${jobId}`)
       if (response.ok) {
         const blob = await response.blob()
         const url = window.URL.createObjectURL(blob)
@@ -667,7 +675,7 @@ export default function VideoSubtitleGenerator() {
   const downloadWordTimingsFile = useCallback(async () => {
     if (!jobId) return
     try {
-      const response = await fetch(`http://localhost:8000/download/word-timings/${jobId}`)
+      const response = await apiFetch(`/download/word-timings/${jobId}`)
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
         throw new Error(errorData?.detail || 'Word timings download failed')
@@ -763,6 +771,10 @@ export default function VideoSubtitleGenerator() {
   }, [karaokeCues])
 
   useEffect(() => {
+    setApiKey(getStoredApiKey())
+  }, [])
+
+  useEffect(() => {
     if (jobStatus?.status === 'completed' && wordTimings.length === 0 && jobId && (jobStatus.karaoke || jobStatus.has_word_timings)) {
       fetchWordTimings(jobId)
     }
@@ -822,6 +834,24 @@ export default function VideoSubtitleGenerator() {
         {/* main area */}
         <div className="max-w-4xl mx-auto">
           <div className="bg-white border border-gray-200 rounded-lg p-8 shadow-sm">
+            <div className="mb-8">
+              <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="api-key">
+                API Key
+              </label>
+              <input
+                id="api-key"
+                type="password"
+                autoComplete="current-password"
+                value={apiKey}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setApiKey(v)
+                  setStoredApiKey(v)
+                }}
+                placeholder="Backend API key"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
             {!jobId ? (
               /* upload section */
               <div className="space-y-8">
@@ -951,6 +981,13 @@ export default function VideoSubtitleGenerator() {
                     </span>
                   </label>
                 </div>
+
+                {(karaokeEnabled || burnFromWordTimings) && (
+                  <StyleTemplatePanel
+                    selectedSlug={styleTemplateSlug}
+                    onSelectSlug={setStyleTemplateSlug}
+                  />
+                )}
 
                 {/* SRT upload for burn mode */}
                 {burnSubtitles && !burnFromWordTimings && (
@@ -1420,7 +1457,7 @@ export default function VideoSubtitleGenerator() {
                         ref={previewVideoRef}
                         controls
                         className="w-full h-auto max-h-96 object-contain"
-                        src={`http://localhost:8000/video/preview/${jobId}`}
+                        src={`${API_BASE}/video/preview/${jobId}${apiKey ? `?api_key=${encodeURIComponent(apiKey)}` : ''}`}
                         preload="metadata"
                         onTimeUpdate={handlePreviewTimeUpdate}
                         onSeeked={handlePreviewTimeUpdate}

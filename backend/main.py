@@ -1,5 +1,5 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form, BackgroundTasks
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import logging
@@ -8,9 +8,17 @@ import asyncio
 import json
 from datetime import datetime
 import io
+import uuid
 
 from services.video_processing_service import VideoProcessingService
+from services.style_storage_service import StyleStorageService
+from services.style_bootstrap import bootstrap_styles, STROKE_PREVIEW_WIDTHS
+from services.job_store import build_job_store
+from services.media_store import MediaStore
+from services.job_runtime import JobRuntime
+from models.style_template import StyleTemplate
 from utils.config import get_settings
+from utils.auth import ApiKeyMiddleware
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,23 +28,151 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Video Subtitle Generator", version="1.0.0")
 
-# Configure CORS
+settings = get_settings()
+_cors = [o.strip() for o in (settings.cors_origins or "").split(",") if o.strip()] or ["http://localhost:3000"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=(_cors + ["*"]) if not settings.backend_api_key else _cors,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(ApiKeyMiddleware, api_key=settings.backend_api_key)
 
 video_service = VideoProcessingService()
-settings = get_settings()
+style_storage = StyleStorageService(settings)
+media_store = MediaStore(settings)
+job_store = build_job_store(settings)
+active_jobs = JobRuntime(job_store, media_store)
 
-active_jobs: Dict[str, Dict] = {}
+
+@app.on_event("startup")
+async def _startup_styles():
+    global style_storage
+    try:
+        style_storage = await bootstrap_styles()
+        logger.info("Style templates bootstrapped (%s)", style_storage.mode)
+    except Exception as e:
+        logger.warning("Style bootstrap failed: %s", e)
+
+
+def _resolve_job_style(job: dict):
+    slug = job.get("style_template_slug")
+    if not slug:
+        return None, None
+    template = style_storage.get_template(slug)
+    if not template:
+        return None, None
+    fonts_dir = style_storage.fonts_dir_for_template(template)
+    return template, fonts_dir
+
 
 @app.get("/")
 async def root():
     return {"message": "Video Subtitle Generator API"}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "storage": "dynamodb" if settings.jobs_table_name else "memory"}
+
+
+@app.get("/warmup")
+async def warmup():
+    """Lightweight ping to reduce cold starts (UI calls via Warmup Lambda)."""
+    _ = job_store.list_by_tenant("default", limit=1)
+    return {"status": "warm", "ts": datetime.now().isoformat()}
+
+
+@app.post("/jobs/presign")
+async def presign_upload(filename: str = Form("video.mp4"), content_type: str = Form("video/mp4")):
+    """Create job + S3/local upload target for large files."""
+    job_id = str(uuid.uuid4())
+    key = media_store.new_key(job_id, "input", filename)
+    active_jobs[job_id] = {
+        "status": "awaiting_upload",
+        "filename": filename,
+        "mode": "generate",
+        "input_video_key": key,
+        "progress": 0,
+        "karaoke": settings.karaoke_enabled_default,
+        "created_at": datetime.now().isoformat(),
+    }
+    url = media_store.presign_put(key, content_type=content_type)
+    return {
+        "job_id": job_id,
+        "upload_url": url,
+        "input_video_key": key,
+        "use_s3": media_store.use_s3,
+    }
+
+
+@app.get("/styles/templates")
+async def list_style_templates():
+    return {"templates": [t.model_dump() for t in style_storage.list_templates()]}
+
+
+@app.get("/styles/templates/{slug}")
+async def get_style_template(slug: str):
+    tmpl = style_storage.get_template(slug)
+    if not tmpl:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return tmpl.model_dump()
+
+
+@app.post("/styles/templates")
+async def save_style_template(payload: dict):
+    try:
+        tmpl = StyleTemplate.model_validate(payload)
+        saved = style_storage.save_template(tmpl)
+        return saved.model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/styles/fonts")
+async def list_style_fonts():
+    return {"fonts": [f.model_dump() for f in style_storage.list_fonts()]}
+
+
+@app.post("/styles/fonts")
+async def upload_style_font(file: UploadFile = File(...)):
+    name = file.filename or "font.ttf"
+    if not name.lower().endswith((".ttf", ".otf")):
+        raise HTTPException(status_code=400, detail="Only .ttf and .otf fonts are supported")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty font file")
+    try:
+        asset = style_storage.upload_font(name, data)
+        return asset.model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/styles/stroke-previews")
+async def list_stroke_previews():
+    items = []
+    for i, width in enumerate(STROKE_PREVIEW_WIDTHS):
+        path = style_storage.stroke_preview_path(i)
+        items.append({
+            "index": i,
+            "strokeWidth": width,
+            "url": f"/styles/stroke-previews/{i}" if path.exists() else None,
+        })
+    return {"previews": items}
+
+
+@app.get("/styles/stroke-previews/{index}")
+async def get_stroke_preview(index: int):
+    if index < 0 or index >= len(STROKE_PREVIEW_WIDTHS):
+        raise HTTPException(status_code=404, detail="Preview not found")
+    path = style_storage.stroke_preview_path(index)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Preview not generated")
+    return FileResponse(path, media_type="image/png")
+
 
 @app.post("/upload")
 async def upload_video(
@@ -198,6 +334,7 @@ async def process_video(
     target_language: Optional[str] = Form(None),
     source_language: Optional[str] = Form(None),
     karaoke: Optional[str] = Form(None),
+    style_template_slug: Optional[str] = Form(None),
 ):
     """Start video processing (generate, burn SRT, or burn word timings)"""
     try:
@@ -210,6 +347,8 @@ async def process_video(
             raise HTTPException(status_code=400, detail="Job not ready for processing")
 
         mode = job.get("mode", "generate")
+        if style_template_slug:
+            job["style_template_slug"] = style_template_slug.strip()
 
         karaoke_enabled = settings.karaoke_enabled_default
         if mode == "burn_words":
@@ -300,7 +439,13 @@ async def burn_word_timings_background(job_id: str):
 
         job["status"] = "rendering_video"
         job["progress"] = 70
-        result_video_bytes = await video_service.render_with_karaoke(video_data, word_timings)
+        template, fonts_dir = _resolve_job_style(job)
+        result_video_bytes = await video_service.render_with_karaoke(
+            video_data,
+            word_timings,
+            style_template=template,
+            fonts_dir=fonts_dir,
+        )
 
         job["status"] = "completed"
         job["progress"] = 100
@@ -359,7 +504,13 @@ async def _render_final_video(
 
         job["status"] = "rendering_video"
         job["progress"] = 92
-        result = await video_service.render_with_karaoke(video_data, word_timings)
+        template, fonts_dir = _resolve_job_style(job)
+        result = await video_service.render_with_karaoke(
+            video_data,
+            word_timings,
+            style_template=template,
+            fonts_dir=fonts_dir,
+        )
         job["karaoke_layout"] = video_service.karaoke_service.layout_css()
         return result
 

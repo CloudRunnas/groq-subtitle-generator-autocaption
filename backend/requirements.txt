@@ -12,3 +12,5 @@ webvtt-py==0.4.6
 whisperx>=3.3.0
 torch
 torchaudio
+boto3
+botocore[crt]

@@ -23,6 +23,8 @@
 # misc
 .DS_Store
 *.pem
+infra/cdk/cdk.out/
+infra/cdk/node_modules/
 
 # debug
 npm-debug.log*
@@ -45,3 +47,5 @@ __pycache__/
 *.pyo
 venv/
 backend/temp/
+backend/data/styles/cache/
+

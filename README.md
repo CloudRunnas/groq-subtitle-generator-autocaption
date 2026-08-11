@@ -167,9 +167,27 @@ SUBTITLE_HEIGHT_PCT=0.15
 SUBTITLE_FONT_SIZE_MIN=18
 SUBTITLE_CHAR_WIDTH_FACTOR=0.55
 SUBTITLE_FIT_SAFETY_PCT=0.05
+
+# Style templates & fonts (local fallback or S3)
+STYLE_STORAGE=local
+# STYLE_STORAGE=s3
+# AWS_REGION=eu-central-1
+# AWS_S3_BUCKET=autocaption-styles-YOURACCOUNT
+STYLE_LOCAL_DIR=data/styles
 ```
 
-### WhisperX / Karaoke notes
+Create a private S3 bucket (Block Public Access on, versioning suspended) after `aws login`:
+
+```bash
+./scripts/create_style_bucket.sh
+```
+
+### Style templates
+
+- Templates store per-role styles (`spokenText` / `activeText` / `normalText`: color, formatting, optional stroke override), global stroke, font key, and effects (**Bounce**, **Outline-Pulse**) that apply only to `activeText`.
+- JSON + fonts live under `backend/data/styles/` locally, or on S3 when `STYLE_STORAGE=s3`.
+- Stroke-width thumbnails are generated with **ASS + FFmpeg** (16 steps).
+- Seed templates: Neon Gelb, Neon Lila, Orange Classic.
 
 - Karaoke uses **WhisperX `align()`** with your SRT (or generated cues) as reference text — no second transcription.
 - German is supported via language-specific wav2vec2 align models (`language_code=de`).
