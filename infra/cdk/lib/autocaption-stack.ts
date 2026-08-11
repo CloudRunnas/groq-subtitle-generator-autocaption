@@ -224,7 +224,8 @@ function handler(event) {
     const albOrigin = new origins.LoadBalancerV2Origin(alb, {
       protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
       httpPort: 80,
-      readTimeout: cdk.Duration.seconds(180),
+      // CloudFront origin timeouts are capped at 60s without a quota increase.
+      readTimeout: cdk.Duration.seconds(60),
       keepaliveTimeout: cdk.Duration.seconds(60),
     });
 
