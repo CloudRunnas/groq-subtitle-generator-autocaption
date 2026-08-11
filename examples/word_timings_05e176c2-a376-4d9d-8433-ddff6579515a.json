@@ -1,0 +1,1926 @@
+{
+  "version": 1,
+  "window_size": 5,
+  "words": [
+    {
+      "word": "Hallo,",
+      "start": 0.441,
+      "end": 0.622,
+      "score": 0.641,
+      "cue_index": 0,
+      "aligned": true
+    },
+    {
+      "word": "ich",
+      "start": 0.662,
+      "end": 0.742,
+      "score": 0.699,
+      "cue_index": 0,
+      "aligned": true
+    },
+    {
+      "word": "bin",
+      "start": 0.762,
+      "end": 0.962,
+      "score": 0.748,
+      "cue_index": 0,
+      "aligned": true
+    },
+    {
+      "word": "Mike.",
+      "start": 0.982,
+      "end": 1.965,
+      "score": 0.72,
+      "cue_index": 0,
+      "aligned": true
+    },
+    {
+      "word": "Ich",
+      "start": 2.005,
+      "end": 2.145,
+      "score": 0.272,
+      "cue_index": 1,
+      "aligned": true
+    },
+    {
+      "word": "leite",
+      "start": 2.206,
+      "end": 2.406,
+      "score": 0.789,
+      "cue_index": 1,
+      "aligned": true
+    },
+    {
+      "word": "unter",
+      "start": 2.446,
+      "end": 2.607,
+      "score": 0.9,
+      "cue_index": 1,
+      "aligned": true
+    },
+    {
+      "word": "Schizophrenie",
+      "start": 2.627,
+      "end": 3.288,
+      "score": 0.73,
+      "cue_index": 1,
+      "aligned": true
+    },
+    {
+      "word": "und",
+      "start": 3.308,
+      "end": 3.429,
+      "score": 0.812,
+      "cue_index": 1,
+      "aligned": true
+    },
+    {
+      "word": "höre",
+      "start": 3.469,
+      "end": 3.749,
+      "score": 0.511,
+      "cue_index": 1,
+      "aligned": true
+    },
+    {
+      "word": "Stimmen",
+      "start": 3.789,
+      "end": 4.732,
+      "score": 0.908,
+      "cue_index": 1,
+      "aligned": true
+    },
+    {
+      "word": "und",
+      "start": 4.772,
+      "end": 4.932,
+      "score": 0.851,
+      "cue_index": 1,
+      "aligned": true
+    },
+    {
+      "word": "erkläre",
+      "start": 4.972,
+      "end": 5.293,
+      "score": 0.876,
+      "cue_index": 1,
+      "aligned": true
+    },
+    {
+      "word": "euch",
+      "start": 5.333,
+      "end": 5.494,
+      "score": 0.415,
+      "cue_index": 1,
+      "aligned": true
+    },
+    {
+      "word": "heute,",
+      "start": 5.534,
+      "end": 6.095,
+      "score": 0.982,
+      "cue_index": 1,
+      "aligned": true
+    },
+    {
+      "word": "worüber",
+      "start": 6.115,
+      "end": 6.396,
+      "score": 0.73,
+      "cue_index": 1,
+      "aligned": true
+    },
+    {
+      "word": "ich",
+      "start": 6.416,
+      "end": 6.516,
+      "score": 0.258,
+      "cue_index": 1,
+      "aligned": true
+    },
+    {
+      "word": "so",
+      "start": 6.536,
+      "end": 6.977,
+      "score": 0.746,
+      "cue_index": 1,
+      "aligned": true
+    },
+    {
+      "word": "wirklich",
+      "start": 7.018,
+      "end": 7.479,
+      "score": 0.9,
+      "cue_index": 1,
+      "aligned": true
+    },
+    {
+      "word": "geschockt",
+      "start": 7.519,
+      "end": 7.82,
+      "score": 0.374,
+      "cue_index": 1,
+      "aligned": true
+    },
+    {
+      "word": "bin.",
+      "start": 7.84,
+      "end": 7.92,
+      "score": 0.01,
+      "cue_index": 1,
+      "aligned": true
+    },
+    {
+      "word": "Aktuell",
+      "start": 10.742,
+      "end": 11.083,
+      "score": 0.827,
+      "cue_index": 2,
+      "aligned": true
+    },
+    {
+      "word": "ist",
+      "start": 11.124,
+      "end": 11.224,
+      "score": 0.947,
+      "cue_index": 2,
+      "aligned": true
+    },
+    {
+      "word": "ja",
+      "start": 11.244,
+      "end": 11.365,
+      "score": 0.934,
+      "cue_index": 2,
+      "aligned": true
+    },
+    {
+      "word": "der",
+      "start": 11.385,
+      "end": 11.486,
+      "score": 0.821,
+      "cue_index": 2,
+      "aligned": true
+    },
+    {
+      "word": "Kurs",
+      "start": 11.526,
+      "end": 11.707,
+      "score": 0.833,
+      "cue_index": 2,
+      "aligned": true
+    },
+    {
+      "word": "in",
+      "start": 11.727,
+      "end": 11.807,
+      "score": 0.85,
+      "cue_index": 2,
+      "aligned": true
+    },
+    {
+      "word": "Deutschland",
+      "start": 11.848,
+      "end": 12.21,
+      "score": 0.854,
+      "cue_index": 2,
+      "aligned": true
+    },
+    {
+      "word": "so,",
+      "start": 12.23,
+      "end": 12.411,
+      "score": 0.983,
+      "cue_index": 2,
+      "aligned": true
+    },
+    {
+      "word": "dass",
+      "start": 12.431,
+      "end": 12.571,
+      "score": 0.942,
+      "cue_index": 2,
+      "aligned": true
+    },
+    {
+      "word": "es",
+      "start": 12.632,
+      "end": 12.933,
+      "score": 0.898,
+      "cue_index": 2,
+      "aligned": true
+    },
+    {
+      "word": "immer",
+      "start": 12.954,
+      "end": 13.114,
+      "score": 0.958,
+      "cue_index": 2,
+      "aligned": true
+    },
+    {
+      "word": "mehr",
+      "start": 13.134,
+      "end": 13.315,
+      "score": 0.843,
+      "cue_index": 2,
+      "aligned": true
+    },
+    {
+      "word": "Sozialabbau",
+      "start": 13.356,
+      "end": 13.858,
+      "score": 0.592,
+      "cue_index": 2,
+      "aligned": true
+    },
+    {
+      "word": "gibt.",
+      "start": 13.899,
+      "end": 14.12,
+      "score": 0.268,
+      "cue_index": 2,
+      "aligned": true
+    },
+    {
+      "word": "Es",
+      "start": 15.16,
+      "end": 15.221,
+      "score": 0.862,
+      "cue_index": 3,
+      "aligned": true
+    },
+    {
+      "word": "gibt",
+      "start": 15.241,
+      "end": 15.401,
+      "score": 0.898,
+      "cue_index": 3,
+      "aligned": true
+    },
+    {
+      "word": "weniger",
+      "start": 15.421,
+      "end": 16.304,
+      "score": 0.955,
+      "cue_index": 3,
+      "aligned": true
+    },
+    {
+      "word": "Kosten,",
+      "start": 16.364,
+      "end": 17.628,
+      "score": 0.893,
+      "cue_index": 3,
+      "aligned": true
+    },
+    {
+      "word": "die",
+      "start": 17.648,
+      "end": 17.728,
+      "score": 0.943,
+      "cue_index": 3,
+      "aligned": true
+    },
+    {
+      "word": "übernommen",
+      "start": 17.768,
+      "end": 18.049,
+      "score": 0.98,
+      "cue_index": 3,
+      "aligned": true
+    },
+    {
+      "word": "werden",
+      "start": 18.089,
+      "end": 18.33,
+      "score": 0.904,
+      "cue_index": 3,
+      "aligned": true
+    },
+    {
+      "word": "für",
+      "start": 18.37,
+      "end": 18.511,
+      "score": 0.854,
+      "cue_index": 3,
+      "aligned": true
+    },
+    {
+      "word": "Therapieplätze,",
+      "start": 18.531,
+      "end": 20.056,
+      "score": 0.912,
+      "cue_index": 3,
+      "aligned": true
+    },
+    {
+      "word": "für",
+      "start": 20.076,
+      "end": 20.176,
+      "score": 0.984,
+      "cue_index": 3,
+      "aligned": true
+    },
+    {
+      "word": "die",
+      "start": 20.216,
+      "end": 20.316,
+      "score": 0.929,
+      "cue_index": 3,
+      "aligned": true
+    },
+    {
+      "word": "Medikamentenzuzahlung.",
+      "start": 20.336,
+      "end": 21.42,
+      "score": 0.695,
+      "cue_index": 3,
+      "aligned": true
+    },
+    {
+      "word": "Und",
+      "start": 22.36,
+      "end": 22.481,
+      "score": 0.409,
+      "cue_index": 4,
+      "aligned": true
+    },
+    {
+      "word": "auch",
+      "start": 22.501,
+      "end": 22.681,
+      "score": 0.713,
+      "cue_index": 4,
+      "aligned": true
+    },
+    {
+      "word": "soziale",
+      "start": 22.721,
+      "end": 23.083,
+      "score": 0.951,
+      "cue_index": 4,
+      "aligned": true
+    },
+    {
+      "word": "Arbeit",
+      "start": 23.123,
+      "end": 23.384,
+      "score": 0.872,
+      "cue_index": 4,
+      "aligned": true
+    },
+    {
+      "word": "ist",
+      "start": 23.444,
+      "end": 23.866,
+      "score": 0.874,
+      "cue_index": 4,
+      "aligned": true
+    },
+    {
+      "word": "etwas,",
+      "start": 23.886,
+      "end": 24.107,
+      "score": 0.946,
+      "cue_index": 4,
+      "aligned": true
+    },
+    {
+      "word": "was",
+      "start": 24.147,
+      "end": 24.247,
+      "score": 0.832,
+      "cue_index": 4,
+      "aligned": true
+    },
+    {
+      "word": "sich",
+      "start": 24.267,
+      "end": 24.468,
+      "score": 0.869,
+      "cue_index": 4,
+      "aligned": true
+    },
+    {
+      "word": "immer",
+      "start": 24.508,
+      "end": 24.749,
+      "score": 0.955,
+      "cue_index": 4,
+      "aligned": true
+    },
+    {
+      "word": "weniger",
+      "start": 24.789,
+      "end": 25.09,
+      "score": 0.957,
+      "cue_index": 4,
+      "aligned": true
+    },
+    {
+      "word": "auszahlt",
+      "start": 25.13,
+      "end": 26.074,
+      "score": 0.796,
+      "cue_index": 4,
+      "aligned": true
+    },
+    {
+      "word": "und",
+      "start": 26.114,
+      "end": 26.174,
+      "score": 0.899,
+      "cue_index": 4,
+      "aligned": true
+    },
+    {
+      "word": "da",
+      "start": 26.214,
+      "end": 26.295,
+      "score": 0.786,
+      "cue_index": 4,
+      "aligned": true
+    },
+    {
+      "word": "werden",
+      "start": 26.335,
+      "end": 26.777,
+      "score": 0.94,
+      "cue_index": 4,
+      "aligned": true
+    },
+    {
+      "word": "krass",
+      "start": 26.797,
+      "end": 27.017,
+      "score": 0.78,
+      "cue_index": 4,
+      "aligned": true
+    },
+    {
+      "word": "Stellen",
+      "start": 27.058,
+      "end": 27.278,
+      "score": 0.975,
+      "cue_index": 4,
+      "aligned": true
+    },
+    {
+      "word": "abgebaut.",
+      "start": 27.379,
+      "end": 27.7,
+      "score": 0.174,
+      "cue_index": 4,
+      "aligned": true
+    },
+    {
+      "word": "Und",
+      "start": 29.623,
+      "end": 29.803,
+      "score": 0.563,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "ich",
+      "start": 29.863,
+      "end": 30.104,
+      "score": 0.759,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "höre",
+      "start": 30.124,
+      "end": 30.364,
+      "score": 0.815,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "Stimmen,",
+      "start": 30.404,
+      "end": 30.785,
+      "score": 0.83,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "ich",
+      "start": 30.805,
+      "end": 30.905,
+      "score": 0.824,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "bin",
+      "start": 30.925,
+      "end": 31.246,
+      "score": 0.921,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "betroffen",
+      "start": 31.266,
+      "end": 31.626,
+      "score": 0.868,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "von",
+      "start": 31.646,
+      "end": 31.827,
+      "score": 0.884,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "struktureller",
+      "start": 31.867,
+      "end": 32.428,
+      "score": 0.948,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "Gewalt",
+      "start": 32.468,
+      "end": 33.79,
+      "score": 0.935,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "und",
+      "start": 33.83,
+      "end": 33.95,
+      "score": 0.647,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "muss",
+      "start": 33.97,
+      "end": 34.15,
+      "score": 0.87,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "jeden",
+      "start": 34.17,
+      "end": 34.351,
+      "score": 0.781,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "Tag",
+      "start": 34.371,
+      "end": 34.671,
+      "score": 0.982,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "arbeiten,",
+      "start": 34.731,
+      "end": 35.392,
+      "score": 0.917,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "um",
+      "start": 35.432,
+      "end": 35.573,
+      "score": 0.881,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "meine",
+      "start": 35.593,
+      "end": 35.793,
+      "score": 0.803,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "Gedanken",
+      "start": 35.813,
+      "end": 36.895,
+      "score": 0.891,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "und",
+      "start": 36.935,
+      "end": 37.055,
+      "score": 0.565,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "meine",
+      "start": 37.075,
+      "end": 37.295,
+      "score": 0.604,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "Realität",
+      "start": 37.335,
+      "end": 37.796,
+      "score": 0.9,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "wahrnehmen",
+      "start": 37.836,
+      "end": 38.177,
+      "score": 0.857,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "zu",
+      "start": 38.217,
+      "end": 38.297,
+      "score": 0.847,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "können",
+      "start": 38.317,
+      "end": 38.617,
+      "score": 0.816,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "und",
+      "start": 38.658,
+      "end": 38.758,
+      "score": 0.676,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "in",
+      "start": 38.798,
+      "end": 39.138,
+      "score": 0.535,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "Worte",
+      "start": 39.158,
+      "end": 39.439,
+      "score": 0.868,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "zu",
+      "start": 39.459,
+      "end": 39.539,
+      "score": 0.786,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "verpacken",
+      "start": 39.579,
+      "end": 39.839,
+      "score": 0.784,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "zu",
+      "start": 39.92,
+      "end": 40.0,
+      "score": 0.266,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "können.",
+      "start": 40.02,
+      "end": 40.16,
+      "score": 0.321,
+      "cue_index": 5,
+      "aligned": true
+    },
+    {
+      "word": "Für",
+      "start": 41.08,
+      "end": 41.18,
+      "score": 0.598,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "viele",
+      "start": 41.201,
+      "end": 41.341,
+      "score": 0.548,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "ist",
+      "start": 41.361,
+      "end": 41.441,
+      "score": 0.839,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "es",
+      "start": 41.501,
+      "end": 41.582,
+      "score": 0.643,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "bestimmt",
+      "start": 41.622,
+      "end": 41.843,
+      "score": 0.84,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "eine",
+      "start": 41.883,
+      "end": 42.143,
+      "score": 0.645,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "Verschwörungstheorie,",
+      "start": 42.184,
+      "end": 42.926,
+      "score": 0.712,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "was",
+      "start": 42.946,
+      "end": 43.086,
+      "score": 0.656,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "am",
+      "start": 43.127,
+      "end": 43.227,
+      "score": 0.708,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "Ende",
+      "start": 43.247,
+      "end": 43.427,
+      "score": 0.827,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "da",
+      "start": 43.468,
+      "end": 43.528,
+      "score": 0.928,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "rauskommt,",
+      "start": 43.548,
+      "end": 43.949,
+      "score": 0.814,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "aber",
+      "start": 43.969,
+      "end": 44.15,
+      "score": 0.897,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "ich",
+      "start": 44.19,
+      "end": 44.691,
+      "score": 0.794,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "kommuniziere",
+      "start": 44.711,
+      "end": 45.093,
+      "score": 0.525,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "es",
+      "start": 45.113,
+      "end": 45.193,
+      "score": 0.378,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "an",
+      "start": 45.233,
+      "end": 45.414,
+      "score": 0.82,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "anderen",
+      "start": 45.454,
+      "end": 45.755,
+      "score": 0.905,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "Menschen,",
+      "start": 45.775,
+      "end": 46.617,
+      "score": 0.812,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "damit",
+      "start": 46.637,
+      "end": 46.838,
+      "score": 0.646,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "die",
+      "start": 46.858,
+      "end": 46.958,
+      "score": 0.396,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "mir",
+      "start": 46.978,
+      "end": 47.059,
+      "score": 0.519,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "helfen",
+      "start": 47.079,
+      "end": 47.199,
+      "score": 0.076,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "können.",
+      "start": 47.219,
+      "end": 47.36,
+      "score": 0.086,
+      "cue_index": 6,
+      "aligned": true
+    },
+    {
+      "word": "und",
+      "start": 49.827,
+      "end": 49.947,
+      "score": 0.638,
+      "cue_index": 7,
+      "aligned": true
+    },
+    {
+      "word": "was",
+      "start": 49.967,
+      "end": 50.088,
+      "score": 0.82,
+      "cue_index": 7,
+      "aligned": true
+    },
+    {
+      "word": "mich",
+      "start": 50.108,
+      "end": 50.248,
+      "score": 0.705,
+      "cue_index": 7,
+      "aligned": true
+    },
+    {
+      "word": "aktuell",
+      "start": 50.288,
+      "end": 50.569,
+      "score": 0.786,
+      "cue_index": 7,
+      "aligned": true
+    },
+    {
+      "word": "einfach",
+      "start": 50.609,
+      "end": 50.83,
+      "score": 0.919,
+      "cue_index": 7,
+      "aligned": true
+    },
+    {
+      "word": "sehr",
+      "start": 50.87,
+      "end": 50.991,
+      "score": 0.86,
+      "cue_index": 7,
+      "aligned": true
+    },
+    {
+      "word": "schockt,",
+      "start": 51.031,
+      "end": 51.332,
+      "score": 0.743,
+      "cue_index": 7,
+      "aligned": true
+    },
+    {
+      "word": "ist,",
+      "start": 51.352,
+      "end": 51.492,
+      "score": 0.903,
+      "cue_index": 7,
+      "aligned": true
+    },
+    {
+      "word": "dass",
+      "start": 51.512,
+      "end": 52.555,
+      "score": 0.849,
+      "cue_index": 7,
+      "aligned": true
+    },
+    {
+      "word": "überhaupt",
+      "start": 52.575,
+      "end": 52.836,
+      "score": 0.692,
+      "cue_index": 7,
+      "aligned": true
+    },
+    {
+      "word": "die",
+      "start": 52.856,
+      "end": 52.997,
+      "score": 0.753,
+      "cue_index": 7,
+      "aligned": true
+    },
+    {
+      "word": "Notwendigkeit",
+      "start": 53.037,
+      "end": 53.719,
+      "score": 0.927,
+      "cue_index": 7,
+      "aligned": true
+    },
+    {
+      "word": "besteht,",
+      "start": 53.759,
+      "end": 54.1,
+      "score": 0.13,
+      "cue_index": 7,
+      "aligned": true
+    },
+    {
+      "word": "dass",
+      "start": 54.601,
+      "end": 54.722,
+      "score": 0.903,
+      "cue_index": 8,
+      "aligned": true
+    },
+    {
+      "word": "sich",
+      "start": 54.742,
+      "end": 54.924,
+      "score": 0.734,
+      "cue_index": 8,
+      "aligned": true
+    },
+    {
+      "word": "Menschen",
+      "start": 54.945,
+      "end": 55.167,
+      "score": 0.9,
+      "cue_index": 8,
+      "aligned": true
+    },
+    {
+      "word": "für",
+      "start": 55.188,
+      "end": 55.289,
+      "score": 0.849,
+      "cue_index": 8,
+      "aligned": true
+    },
+    {
+      "word": "mich",
+      "start": 55.329,
+      "end": 55.471,
+      "score": 0.848,
+      "cue_index": 8,
+      "aligned": true
+    },
+    {
+      "word": "einsetzen",
+      "start": 55.511,
+      "end": 55.876,
+      "score": 0.872,
+      "cue_index": 8,
+      "aligned": true
+    },
+    {
+      "word": "und",
+      "start": 55.916,
+      "end": 55.977,
+      "score": 0.0,
+      "cue_index": 8,
+      "aligned": true
+    },
+    {
+      "word": "sagen,",
+      "start": 55.997,
+      "end": 56.24,
+      "score": 0.32,
+      "cue_index": 8,
+      "aligned": true
+    },
+    {
+      "word": "oh",
+      "start": 56.861,
+      "end": 57.041,
+      "score": 0.801,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "Mike,",
+      "start": 57.081,
+      "end": 57.724,
+      "score": 0.635,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "der",
+      "start": 57.744,
+      "end": 57.844,
+      "score": 0.512,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "ist",
+      "start": 57.884,
+      "end": 57.964,
+      "score": 0.787,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "doch",
+      "start": 57.985,
+      "end": 58.085,
+      "score": 0.782,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "ein",
+      "start": 58.105,
+      "end": 58.205,
+      "score": 0.697,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "guter",
+      "start": 58.245,
+      "end": 58.466,
+      "score": 0.941,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "Junge,",
+      "start": 58.506,
+      "end": 58.908,
+      "score": 0.868,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "der",
+      "start": 59.992,
+      "end": 60.092,
+      "score": 0.501,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "gibt",
+      "start": 60.132,
+      "end": 60.293,
+      "score": 0.689,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "sich",
+      "start": 60.313,
+      "end": 60.433,
+      "score": 0.562,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "so",
+      "start": 60.453,
+      "end": 60.554,
+      "score": 0.921,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "viel",
+      "start": 60.574,
+      "end": 60.714,
+      "score": 0.798,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "Mühe",
+      "start": 60.754,
+      "end": 61.176,
+      "score": 0.775,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "und",
+      "start": 61.216,
+      "end": 61.336,
+      "score": 0.893,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "siehst",
+      "start": 61.376,
+      "end": 61.517,
+      "score": 0.626,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "ja,",
+      "start": 61.537,
+      "end": 61.597,
+      "score": 0.225,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "der",
+      "start": 61.617,
+      "end": 61.677,
+      "score": 0.044,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "ist",
+      "start": 61.718,
+      "end": 61.838,
+      "score": 0.508,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "doch",
+      "start": 61.858,
+      "end": 61.999,
+      "score": 0.804,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "so",
+      "start": 62.019,
+      "end": 62.119,
+      "score": 0.861,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "lieb.",
+      "start": 62.139,
+      "end": 62.3,
+      "score": 0.233,
+      "cue_index": 9,
+      "aligned": true
+    },
+    {
+      "word": "Es",
+      "start": 64.021,
+      "end": 64.101,
+      "score": 0.604,
+      "cue_index": 10,
+      "aligned": true
+    },
+    {
+      "word": "ist",
+      "start": 64.141,
+      "end": 65.407,
+      "score": 0.95,
+      "cue_index": 10,
+      "aligned": true
+    },
+    {
+      "word": "klar,",
+      "start": 65.467,
+      "end": 65.668,
+      "score": 0.651,
+      "cue_index": 10,
+      "aligned": true
+    },
+    {
+      "word": "Junge",
+      "start": 65.688,
+      "end": 65.889,
+      "score": 0.877,
+      "cue_index": 10,
+      "aligned": true
+    },
+    {
+      "word": "mit",
+      "start": 65.909,
+      "end": 66.03,
+      "score": 0.878,
+      "cue_index": 10,
+      "aligned": true
+    },
+    {
+      "word": "Problemen,",
+      "start": 66.05,
+      "end": 66.733,
+      "score": 0.84,
+      "cue_index": 10,
+      "aligned": true
+    },
+    {
+      "word": "Mann,",
+      "start": 66.753,
+      "end": 67.034,
+      "score": 0.835,
+      "cue_index": 10,
+      "aligned": true
+    },
+    {
+      "word": "aber",
+      "start": 67.074,
+      "end": 67.637,
+      "score": 0.925,
+      "cue_index": 10,
+      "aligned": true
+    },
+    {
+      "word": "der",
+      "start": 67.657,
+      "end": 67.737,
+      "score": 0.49,
+      "cue_index": 10,
+      "aligned": true
+    },
+    {
+      "word": "ist",
+      "start": 67.757,
+      "end": 67.818,
+      "score": 0.467,
+      "cue_index": 10,
+      "aligned": true
+    },
+    {
+      "word": "doch",
+      "start": 67.838,
+      "end": 67.958,
+      "score": 0.788,
+      "cue_index": 10,
+      "aligned": true
+    },
+    {
+      "word": "so",
+      "start": 67.998,
+      "end": 68.079,
+      "score": 0.61,
+      "cue_index": 10,
+      "aligned": true
+    },
+    {
+      "word": "lieb,",
+      "start": 68.119,
+      "end": 68.32,
+      "score": 0.165,
+      "cue_index": 10,
+      "aligned": true
+    },
+    {
+      "word": "aber",
+      "start": 68.802,
+      "end": 70.147,
+      "score": 0.962,
+      "cue_index": 11,
+      "aligned": true
+    },
+    {
+      "word": "komm,",
+      "start": 70.167,
+      "end": 70.971,
+      "score": 0.777,
+      "cue_index": 11,
+      "aligned": true
+    },
+    {
+      "word": "nicht",
+      "start": 71.011,
+      "end": 71.151,
+      "score": 0.951,
+      "cue_index": 11,
+      "aligned": true
+    },
+    {
+      "word": "so",
+      "start": 71.192,
+      "end": 71.252,
+      "score": 0.25,
+      "cue_index": 11,
+      "aligned": true
+    },
+    {
+      "word": "behandeln,",
+      "start": 71.272,
+      "end": 71.633,
+      "score": 0.835,
+      "cue_index": 11,
+      "aligned": true
+    },
+    {
+      "word": "dass",
+      "start": 71.654,
+      "end": 71.774,
+      "score": 0.856,
+      "cue_index": 11,
+      "aligned": true
+    },
+    {
+      "word": "ich",
+      "start": 71.834,
+      "end": 71.955,
+      "score": 0.855,
+      "cue_index": 11,
+      "aligned": true
+    },
+    {
+      "word": "nicht",
+      "start": 71.975,
+      "end": 72.115,
+      "score": 0.935,
+      "cue_index": 11,
+      "aligned": true
+    },
+    {
+      "word": "so",
+      "start": 72.136,
+      "end": 72.216,
+      "score": 0.991,
+      "cue_index": 11,
+      "aligned": true
+    },
+    {
+      "word": "stigmatisiert",
+      "start": 72.256,
+      "end": 72.859,
+      "score": 0.936,
+      "cue_index": 11,
+      "aligned": true
+    },
+    {
+      "word": "werde",
+      "start": 72.899,
+      "end": 73.1,
+      "score": 0.26,
+      "cue_index": 11,
+      "aligned": true
+    },
+    {
+      "word": "und",
+      "start": 73.603,
+      "end": 73.703,
+      "score": 0.708,
+      "cue_index": 12,
+      "aligned": true
+    },
+    {
+      "word": "darüber",
+      "start": 73.724,
+      "end": 73.824,
+      "score": 0.291,
+      "cue_index": 12,
+      "aligned": true
+    },
+    {
+      "word": "bin",
+      "start": 73.844,
+      "end": 74.006,
+      "score": 0.78,
+      "cue_index": 12,
+      "aligned": true
+    },
+    {
+      "word": "ich",
+      "start": 74.026,
+      "end": 74.187,
+      "score": 0.864,
+      "cue_index": 12,
+      "aligned": true
+    },
+    {
+      "word": "einfach",
+      "start": 74.227,
+      "end": 74.408,
+      "score": 0.98,
+      "cue_index": 12,
+      "aligned": true
+    },
+    {
+      "word": "krass",
+      "start": 74.449,
+      "end": 74.59,
+      "score": 0.975,
+      "cue_index": 12,
+      "aligned": true
+    },
+    {
+      "word": "geschockt",
+      "start": 74.61,
+      "end": 74.771,
+      "score": 0.738,
+      "cue_index": 12,
+      "aligned": true
+    },
+    {
+      "word": "in",
+      "start": 74.811,
+      "end": 75.396,
+      "score": 0.859,
+      "cue_index": 12,
+      "aligned": true
+    },
+    {
+      "word": "diesem",
+      "start": 75.436,
+      "end": 75.678,
+      "score": 0.54,
+      "cue_index": 12,
+      "aligned": true
+    },
+    {
+      "word": "Land,",
+      "start": 75.778,
+      "end": 75.939,
+      "score": 0.157,
+      "cue_index": 12,
+      "aligned": true
+    },
+    {
+      "word": "und",
+      "start": 76.866,
+      "end": 76.967,
+      "score": 0.598,
+      "cue_index": 13,
+      "aligned": true
+    },
+    {
+      "word": "darüber",
+      "start": 76.987,
+      "end": 77.228,
+      "score": 0.897,
+      "cue_index": 13,
+      "aligned": true
+    },
+    {
+      "word": "bin",
+      "start": 77.269,
+      "end": 77.349,
+      "score": 0.489,
+      "cue_index": 13,
+      "aligned": true
+    },
+    {
+      "word": "ich",
+      "start": 77.389,
+      "end": 77.49,
+      "score": 0.732,
+      "cue_index": 13,
+      "aligned": true
+    },
+    {
+      "word": "einfach",
+      "start": 77.51,
+      "end": 77.772,
+      "score": 0.871,
+      "cue_index": 13,
+      "aligned": true
+    },
+    {
+      "word": "krass",
+      "start": 77.812,
+      "end": 78.074,
+      "score": 0.892,
+      "cue_index": 13,
+      "aligned": true
+    },
+    {
+      "word": "geschockt",
+      "start": 78.094,
+      "end": 78.396,
+      "score": 0.825,
+      "cue_index": 13,
+      "aligned": true
+    },
+    {
+      "word": "in",
+      "start": 78.437,
+      "end": 78.477,
+      "score": 0.424,
+      "cue_index": 13,
+      "aligned": true
+    },
+    {
+      "word": "diesem",
+      "start": 78.497,
+      "end": 78.719,
+      "score": 0.295,
+      "cue_index": 13,
+      "aligned": true
+    },
+    {
+      "word": "Land,",
+      "start": 78.739,
+      "end": 78.92,
+      "score": 0.162,
+      "cue_index": 13,
+      "aligned": true
+    },
+    {
+      "word": "dass",
+      "start": 79.521,
+      "end": 79.642,
+      "score": 0.84,
+      "cue_index": 14,
+      "aligned": true
+    },
+    {
+      "word": "diese",
+      "start": 79.662,
+      "end": 79.945,
+      "score": 0.686,
+      "cue_index": 14,
+      "aligned": true
+    },
+    {
+      "word": "Notwendigkeit",
+      "start": 79.986,
+      "end": 80.592,
+      "score": 0.93,
+      "cue_index": 14,
+      "aligned": true
+    },
+    {
+      "word": "besteht",
+      "start": 80.612,
+      "end": 80.956,
+      "score": 0.858,
+      "cue_index": 14,
+      "aligned": true
+    },
+    {
+      "word": "zu",
+      "start": 80.976,
+      "end": 81.016,
+      "score": 0.0,
+      "cue_index": 14,
+      "aligned": true
+    },
+    {
+      "word": "sagen,",
+      "start": 81.037,
+      "end": 81.279,
+      "score": 0.143,
+      "cue_index": 14,
+      "aligned": true
+    },
+    {
+      "word": "hey,",
+      "start": 81.52,
+      "end": 82.184,
+      "score": 0.381,
+      "cue_index": 15,
+      "aligned": true
+    },
+    {
+      "word": "der",
+      "start": 82.204,
+      "end": 82.305,
+      "score": 0.565,
+      "cue_index": 15,
+      "aligned": true
+    },
+    {
+      "word": "Mensch",
+      "start": 82.466,
+      "end": 82.627,
+      "score": 0.564,
+      "cue_index": 15,
+      "aligned": true
+    },
+    {
+      "word": "ist",
+      "start": 82.667,
+      "end": 82.808,
+      "score": 0.808,
+      "cue_index": 15,
+      "aligned": true
+    },
+    {
+      "word": "liebsam,",
+      "start": 82.848,
+      "end": 83.331,
+      "score": 0.871,
+      "cue_index": 15,
+      "aligned": true
+    },
+    {
+      "word": "damit",
+      "start": 83.351,
+      "end": 83.572,
+      "score": 0.937,
+      "cue_index": 15,
+      "aligned": true
+    },
+    {
+      "word": "ihm",
+      "start": 83.592,
+      "end": 83.713,
+      "score": 0.342,
+      "cue_index": 15,
+      "aligned": true
+    },
+    {
+      "word": "keine",
+      "start": 83.733,
+      "end": 83.934,
+      "score": 0.698,
+      "cue_index": 15,
+      "aligned": true
+    },
+    {
+      "word": "Gewalt",
+      "start": 83.975,
+      "end": 84.276,
+      "score": 0.955,
+      "cue_index": 15,
+      "aligned": true
+    },
+    {
+      "word": "angetan",
+      "start": 84.317,
+      "end": 84.558,
+      "score": 0.515,
+      "cue_index": 15,
+      "aligned": true
+    },
+    {
+      "word": "wird,",
+      "start": 84.578,
+      "end": 84.679,
+      "score": 0.011,
+      "cue_index": 15,
+      "aligned": true
+    },
+    {
+      "word": "denn",
+      "start": 86.241,
+      "end": 86.442,
+      "score": 0.834,
+      "cue_index": 16,
+      "aligned": true
+    },
+    {
+      "word": "egal,",
+      "start": 86.483,
+      "end": 87.73,
+      "score": 0.802,
+      "cue_index": 16,
+      "aligned": true
+    },
+    {
+      "word": "ob",
+      "start": 87.771,
+      "end": 87.891,
+      "score": 0.971,
+      "cue_index": 16,
+      "aligned": true
+    },
+    {
+      "word": "ich",
+      "start": 87.932,
+      "end": 88.113,
+      "score": 0.643,
+      "cue_index": 16,
+      "aligned": true
+    },
+    {
+      "word": "liebenswert",
+      "start": 88.133,
+      "end": 88.636,
+      "score": 0.932,
+      "cue_index": 16,
+      "aligned": true
+    },
+    {
+      "word": "bin",
+      "start": 88.676,
+      "end": 88.837,
+      "score": 0.87,
+      "cue_index": 16,
+      "aligned": true
+    },
+    {
+      "word": "oder",
+      "start": 88.857,
+      "end": 88.978,
+      "score": 0.248,
+      "cue_index": 16,
+      "aligned": true
+    },
+    {
+      "word": "nicht,",
+      "start": 88.998,
+      "end": 89.28,
+      "score": 0.388,
+      "cue_index": 16,
+      "aligned": true
+    },
+    {
+      "word": "ich",
+      "start": 90.581,
+      "end": 90.682,
+      "score": 0.449,
+      "cue_index": 17,
+      "aligned": true
+    },
+    {
+      "word": "sollte",
+      "start": 90.702,
+      "end": 90.964,
+      "score": 0.961,
+      "cue_index": 17,
+      "aligned": true
+    },
+    {
+      "word": "nicht",
+      "start": 90.984,
+      "end": 91.126,
+      "score": 0.912,
+      "cue_index": 17,
+      "aligned": true
+    },
+    {
+      "word": "das",
+      "start": 91.166,
+      "end": 91.347,
+      "score": 0.838,
+      "cue_index": 17,
+      "aligned": true
+    },
+    {
+      "word": "Opfer",
+      "start": 91.388,
+      "end": 91.61,
+      "score": 0.865,
+      "cue_index": 17,
+      "aligned": true
+    },
+    {
+      "word": "von",
+      "start": 91.65,
+      "end": 91.791,
+      "score": 0.922,
+      "cue_index": 17,
+      "aligned": true
+    },
+    {
+      "word": "struktureller",
+      "start": 91.832,
+      "end": 92.316,
+      "score": 0.931,
+      "cue_index": 17,
+      "aligned": true
+    },
+    {
+      "word": "Gewalt",
+      "start": 92.356,
+      "end": 92.638,
+      "score": 0.671,
+      "cue_index": 17,
+      "aligned": true
+    },
+    {
+      "word": "werden",
+      "start": 92.658,
+      "end": 92.84,
+      "score": 0.374,
+      "cue_index": 17,
+      "aligned": true
+    }
+  ]
+}

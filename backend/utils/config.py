@@ -101,11 +101,22 @@ class Settings(BaseSettings):
         "1", "true", "yes", "on"
     )
     whisperx_device: str = os.getenv("WHISPERX_DEVICE", "cpu")
+    # Cue segmentation: each word appears once; highlight runs inside the cue
+    karaoke_cue_min_words: int = int(os.getenv("KARAOKE_CUE_MIN_WORDS", "3"))
+    karaoke_cue_max_words: int = int(os.getenv("KARAOKE_CUE_MAX_WORDS", "6"))
+    # Hard: end cue immediately (sentence end). Soft: only when count in [min, max]
+    karaoke_hard_boundary_chars: str = os.getenv("KARAOKE_HARD_BOUNDARY_CHARS", ".?!")
+    karaoke_soft_boundary_chars: str = os.getenv("KARAOKE_SOFT_BOUNDARY_CHARS", ",;")
+    karaoke_soft_boundary_words: str = os.getenv("KARAOKE_SOFT_BOUNDARY_WORDS", "und,oder")
     # Karaoke layout as fractions of video frame (0–1)
     subtitle_width_pct: float = float(os.getenv("SUBTITLE_WIDTH_PCT", "0.80"))
     subtitle_horizontal_margin_pct: float = float(os.getenv("SUBTITLE_HORIZONTAL_MARGIN_PCT", "0.10"))
     subtitle_vertical_margin_pct: float = float(os.getenv("SUBTITLE_VERTICAL_MARGIN_PCT", "0.05"))
     subtitle_height_pct: float = float(os.getenv("SUBTITLE_HEIGHT_PCT", "0.15"))
+    # Constant font size fitted so the longest cue still fits the subtitle box
+    subtitle_font_size_min: int = int(os.getenv("SUBTITLE_FONT_SIZE_MIN", "18"))
+    subtitle_char_width_factor: float = float(os.getenv("SUBTITLE_CHAR_WIDTH_FACTOR", "0.55"))
+    subtitle_fit_safety_pct: float = float(os.getenv("SUBTITLE_FIT_SAFETY_PCT", "0.05"))
     
     class Config:
         env_file = ".env"

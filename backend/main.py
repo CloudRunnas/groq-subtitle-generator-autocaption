@@ -297,8 +297,6 @@ async def burn_word_timings_background(job_id: str):
 
         video_data = job["video_data"]
         word_timings = job["word_timings"]
-        window_size = int(job.get("window_size") or settings.karaoke_window_size)
-        video_service.karaoke_service.style.window_size = max(1, window_size)
 
         job["status"] = "rendering_video"
         job["progress"] = 70
@@ -308,6 +306,7 @@ async def burn_word_timings_background(job_id: str):
         job["progress"] = 100
         job["result_video"] = result_video_bytes
         job["karaoke"] = True
+        job["karaoke_layout"] = video_service.karaoke_service.layout_css()
         job["completed_at"] = datetime.now().isoformat()
 
         del job["video_data"]
@@ -360,11 +359,14 @@ async def _render_final_video(
 
         job["status"] = "rendering_video"
         job["progress"] = 92
-        return await video_service.render_with_karaoke(video_data, word_timings)
+        result = await video_service.render_with_karaoke(video_data, word_timings)
+        job["karaoke_layout"] = video_service.karaoke_service.layout_css()
+        return result
 
     # Plain SRT burn
     srt_content = await video_service.subtitle_service.generate_srt_content(final_transcription)
     job["word_timings"] = []
+    job["karaoke_layout"] = None
     job["status"] = "rendering_video"
     job["progress"] = 90
 
@@ -688,16 +690,25 @@ async def get_word_timings(job_id: str):
             raise HTTPException(status_code=400, detail="Word timings not ready yet")
 
         word_timings = job.get("word_timings") or []
+        cues = video_service.karaoke_service.build_cues(word_timings)
+        layout = job.get("karaoke_layout")
+        if not layout:
+            # Recompute fit if layout was not stored (e.g. older in-memory jobs)
+            ks = video_service.karaoke_service
+            play_x = int(ks.style.play_res_x or 1920)
+            play_y = int(ks.style.play_res_y or 1080)
+            ks.apply_layout_from_resolution(play_x, play_y)
+            ks.fit_constant_font_size(cues)
+            layout = ks.layout_css()
         return {
             "job_id": job_id,
             "karaoke": bool(job.get("karaoke", False)),
-            "window_size": int(
-                job.get("window_size")
-                or video_service.karaoke_service.style.window_size
-            ),
             "word_count": len(word_timings),
+            "cue_count": len(cues),
             "words": word_timings,
-            "layout": video_service.karaoke_service.layout_css(),
+            "cues": cues,
+            "cue_rules": video_service.karaoke_service.cue_rules(),
+            "layout": layout,
         }
     except HTTPException:
         raise
@@ -723,11 +734,8 @@ async def download_word_timings(job_id: str):
 
         payload = {
             "version": 1,
-            "window_size": int(
-                job.get("window_size")
-                or video_service.karaoke_service.style.window_size
-            ),
             "words": word_timings,
+            "cue_rules": video_service.karaoke_service.cue_rules(),
         }
         content = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
         filename = f"word_timings_{job_id}.json"

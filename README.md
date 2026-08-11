@@ -150,11 +150,23 @@ KARAOKE_ENABLED_DEFAULT=true
 KARAOKE_WINDOW_SIZE=5
 WHISPERX_DEVICE=cpu
 
+# Cue segmentation (each word once; highlight runs inside the cue)
+KARAOKE_CUE_MIN_WORDS=3
+KARAOKE_CUE_MAX_WORDS=6
+KARAOKE_HARD_BOUNDARY_CHARS=.?!
+KARAOKE_SOFT_BOUNDARY_CHARS=,;
+KARAOKE_SOFT_BOUNDARY_WORDS=und,oder
+
 # Karaoke layout as fractions of the video frame (0–1)
 SUBTITLE_WIDTH_PCT=0.80
 SUBTITLE_HORIZONTAL_MARGIN_PCT=0.10
 SUBTITLE_VERTICAL_MARGIN_PCT=0.05
 SUBTITLE_HEIGHT_PCT=0.15
+
+# Constant font size fitted so the longest cue still fits the subtitle box
+SUBTITLE_FONT_SIZE_MIN=18
+SUBTITLE_CHAR_WIDTH_FACTOR=0.55
+SUBTITLE_FIT_SAFETY_PCT=0.05
 ```
 
 ### WhisperX / Karaoke notes
@@ -162,6 +174,8 @@ SUBTITLE_HEIGHT_PCT=0.15
 - Karaoke uses **WhisperX `align()`** with your SRT (or generated cues) as reference text — no second transcription.
 - German is supported via language-specific wav2vec2 align models (`language_code=de`).
 - After alignment you can **download `word_timings.json`** and later re-upload it with a video (**Burn from Word Timings**) to skip alignment.
+- **Cue rules:** words are grouped into reading units. Hard boundaries (`.?!`) end a cue immediately. Soft boundaries (`,;`, words like `und`/`oder`) end a cue only when length is between `KARAOKE_CUE_MIN_WORDS` and `KARAOKE_CUE_MAX_WORDS`. Each word appears in exactly one cue; the highlight advances within the cue, then the next cue is shown.
+- **Font fit:** after cues are built, a single constant ASS font size is chosen as `min(per-cue max fitting size)`, clamped to `[SUBTITLE_FONT_SIZE_MIN, height-band max]`. Fitting allows **multi-line wrap** inside the subtitle box (width × height): text is word-wrapped to the box width, and the total line stack must fit the box height. The same wrap is written into ASS as hard `\\N` breaks.
 - First run downloads align model weights (can take a few minutes).
 - On CPU laptops (e.g. ThinkPad X260), aligning ~1:30 of audio often takes **about 2–5 minutes** after the model is loaded; cold start adds model load time.
 - Install backend deps with enough disk for PyTorch + WhisperX:

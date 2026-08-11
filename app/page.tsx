@@ -259,14 +259,22 @@ export default function VideoSubtitleGenerator() {
   const [transcription, setTranscription] = useState<any>(null)
   const [isEditingTranscription, setIsEditingTranscription] = useState(false)
   const [wordTimings, setWordTimings] = useState<WordTiming[]>([])
-  const [karaokeWindowSize, setKaraokeWindowSize] = useState(5)
-  const [activeWordIndex, setActiveWordIndex] = useState(-1)
+  const [karaokeCues, setKaraokeCues] = useState<Array<{
+    start: number
+    end: number
+    words: Array<WordTiming & { cue_local_index?: number; global_index?: number }>
+  }>>([])
+  const [activeCueIndex, setActiveCueIndex] = useState(-1)
+  const [activeLocalWordIndex, setActiveLocalWordIndex] = useState(-1)
   const [overlayLayout, setOverlayLayout] = useState({
     width_pct: 80,
     left_pct: 10,
     bottom_pct: 5,
     height_pct: 15,
+    font_size: 42,
+    play_res_x: 1920,
   })
+  const [previewDisplayWidth, setPreviewDisplayWidth] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const srtInputRef = useRef<HTMLInputElement>(null)
   const wordTimingsInputRef = useRef<HTMLInputElement>(null)
@@ -447,9 +455,11 @@ export default function VideoSubtitleGenerator() {
       const isBurnWords = mode === 'burn_words' || burnFromWordTimings
       const isBurnMode = mode === 'burn' || (burnSubtitles && !isBurnWords)
 
+      // Always send at least one form field — empty FormData breaks multipart parsing (400)
+      formData.append('karaoke', (isBurnWords || karaokeEnabled) ? 'true' : 'false')
+
       if (!isBurnWords) {
         formData.append('target_language', targetLanguage)
-        formData.append('karaoke', karaokeEnabled ? 'true' : 'false')
         if (sourceLanguage) {
           formData.append('source_language', sourceLanguage)
         } else if (isBurnMode) {
@@ -464,7 +474,11 @@ export default function VideoSubtitleGenerator() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        throw new Error(errorData?.detail || 'Failed to start processing')
+        const detail = errorData?.detail
+        const message = Array.isArray(detail)
+          ? detail.map((d: any) => d.msg || JSON.stringify(d)).join('; ')
+          : (detail || 'Failed to start processing')
+        throw new Error(message)
       }
 
       pollStatus(jobId)
@@ -484,15 +498,15 @@ export default function VideoSubtitleGenerator() {
       }
       const data = await response.json()
       setWordTimings(data.words || [])
-      if (data.window_size) {
-        setKaraokeWindowSize(data.window_size)
-      }
+      setKaraokeCues(data.cues || [])
       if (data.layout) {
         setOverlayLayout({
           width_pct: data.layout.width_pct ?? 80,
           left_pct: data.layout.left_pct ?? 10,
           bottom_pct: data.layout.bottom_pct ?? 5,
           height_pct: data.layout.height_pct ?? 15,
+          font_size: data.layout.font_size ?? 42,
+          play_res_x: data.layout.play_res_x ?? 1920,
         })
       }
     } catch (err) {
@@ -687,7 +701,9 @@ export default function VideoSubtitleGenerator() {
     setTranscription(null)
     setIsEditingTranscription(false)
     setWordTimings([])
-    setActiveWordIndex(-1)
+    setKaraokeCues([])
+    setActiveCueIndex(-1)
+    setActiveLocalWordIndex(-1)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -699,45 +715,83 @@ export default function VideoSubtitleGenerator() {
     }
   }, [])
 
-  const getKaraokeWindow = useCallback((activeIndex: number) => {
-    if (activeIndex < 0 || wordTimings.length === 0) return []
-    const window = Math.max(1, karaokeWindowSize)
-    const half = Math.floor(window / 2)
-    let start = Math.max(0, activeIndex - half)
-    let end = Math.min(wordTimings.length, start + window)
-    start = Math.max(0, end - window)
-    return wordTimings.slice(start, end).map((w, offset) => ({
+  const getActiveCueWords = useCallback(() => {
+    if (activeCueIndex < 0 || activeCueIndex >= karaokeCues.length) return []
+    const cue = karaokeCues[activeCueIndex]
+    return (cue.words || []).map((w, i) => ({
       ...w,
-      index: start + offset,
-      is_active: start + offset === activeIndex,
+      index: w.global_index ?? i,
+      is_active: i === activeLocalWordIndex,
     }))
-  }, [wordTimings, karaokeWindowSize])
+  }, [karaokeCues, activeCueIndex, activeLocalWordIndex])
 
   const handlePreviewTimeUpdate = useCallback(() => {
     const video = previewVideoRef.current
-    if (!video || wordTimings.length === 0) {
-      setActiveWordIndex(-1)
+    if (!video || karaokeCues.length === 0) {
+      setActiveCueIndex(-1)
+      setActiveLocalWordIndex(-1)
       return
     }
     const t = video.currentTime
-    let idx = -1
-    for (let i = 0; i < wordTimings.length; i++) {
-      if (t >= wordTimings[i].start && t < wordTimings[i].end) {
-        idx = i
+    let cueIdx = -1
+    for (let i = 0; i < karaokeCues.length; i++) {
+      if (t >= karaokeCues[i].start && t <= karaokeCues[i].end) {
+        cueIdx = i
         break
       }
-      if (t >= wordTimings[i].start) {
-        idx = i
+      if (t >= karaokeCues[i].start) {
+        cueIdx = i
       }
     }
-    setActiveWordIndex(idx)
-  }, [wordTimings])
+    setActiveCueIndex(cueIdx)
+    if (cueIdx < 0) {
+      setActiveLocalWordIndex(-1)
+      return
+    }
+    const words = karaokeCues[cueIdx].words || []
+    let local = -1
+    for (let i = 0; i < words.length; i++) {
+      if (t >= words[i].start && t < words[i].end) {
+        local = i
+        break
+      }
+      if (t >= words[i].start) {
+        local = i
+      }
+    }
+    setActiveLocalWordIndex(local < 0 ? 0 : local)
+  }, [karaokeCues])
 
   useEffect(() => {
     if (jobStatus?.status === 'completed' && wordTimings.length === 0 && jobId && (jobStatus.karaoke || jobStatus.has_word_timings)) {
       fetchWordTimings(jobId)
     }
   }, [jobStatus, wordTimings.length, jobId, fetchWordTimings])
+
+  useEffect(() => {
+    const video = previewVideoRef.current
+    if (!video || !jobId || jobStatus?.status !== 'completed') {
+      return
+    }
+    const updateWidth = () => setPreviewDisplayWidth(video.clientWidth || 0)
+    updateWidth()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateWidth) : null
+    ro?.observe(video)
+    video.addEventListener('loadedmetadata', updateWidth)
+    return () => {
+      ro?.disconnect()
+      video.removeEventListener('loadedmetadata', updateWidth)
+    }
+  }, [jobId, jobStatus?.status, wordTimings.length])
+
+  const overlayFontPx = (() => {
+    const base = overlayLayout.font_size || 42
+    const playX = overlayLayout.play_res_x || 1920
+    if (!previewDisplayWidth || playX <= 0) {
+      return Math.max(14, Math.round(base * 0.35))
+    }
+    return Math.max(12, Math.round(base * (previewDisplayWidth / playX)))
+  })()
 
   return (
     <div className="min-h-screen bg-white">
@@ -1384,15 +1438,24 @@ export default function VideoSubtitleGenerator() {
                             height: `${overlayLayout.height_pct}%`,
                           }}
                         >
-                          <div className="w-full bg-black/70 rounded-lg px-4 py-2 flex items-center justify-center max-h-full overflow-hidden">
-                            <p className="text-center text-base md:text-xl leading-relaxed flex flex-wrap justify-center gap-x-2 gap-y-1">
-                              {getKaraokeWindow(activeWordIndex).map((w) => (
+                          <div className="w-full flex items-center justify-center max-h-full overflow-hidden px-1">
+                            <p
+                              className="text-center leading-tight flex flex-wrap justify-center gap-x-[0.35em] gap-y-1"
+                              style={{
+                                fontSize: `${overlayFontPx}px`,
+                                fontFamily: 'Arial, sans-serif',
+                                fontWeight: 700,
+                                textShadow:
+                                  '0 0 3px #000, 0 0 3px #000, 1px 1px 2px #000, -1px -1px 2px #000',
+                              }}
+                            >
+                              {getActiveCueWords().map((w) => (
                                 <span
                                   key={`${w.index}-${w.word}`}
                                   className={
                                     w.is_active
-                                      ? 'text-orange-400 font-bold'
-                                      : 'text-white font-medium'
+                                      ? 'text-orange-400'
+                                      : 'text-white'
                                   }
                                 >
                                   {w.word}
@@ -1405,7 +1468,7 @@ export default function VideoSubtitleGenerator() {
                     </div>
                     {wordTimings.length > 0 && (
                       <p className="text-center text-sm text-gray-500">
-                        Live karaoke overlay ({wordTimings.length} words aligned)
+                        Live karaoke overlay ({wordTimings.length} words, {karaokeCues.length} cues)
                       </p>
                     )}
                   </div>
