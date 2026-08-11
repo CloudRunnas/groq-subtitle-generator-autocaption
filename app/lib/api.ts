@@ -1,7 +1,16 @@
 /** API helpers for browser → backend (API key + optional warmup). */
-export const API_BASE =
-  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) ||
-  'http://localhost:8000'
+function defaultApiBase(): string {
+  if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')
+  }
+  // Same-origin /api via CloudFront when UI is served over HTTPS
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return `${window.location.origin}/api`
+  }
+  return 'http://localhost:8000'
+}
+
+export const API_BASE = defaultApiBase()
 
 export const WARMUP_URL =
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_WARMUP_URL) || ''

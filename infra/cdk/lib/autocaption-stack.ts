@@ -143,7 +143,6 @@ export class AutocaptionStack extends cdk.Stack {
         AWS_S3_BUCKET: stylesBucketName,
         MEDIA_BUCKET: mediaBucket.bucketName,
         JOBS_TABLE_NAME: jobsTable.tableName,
-        CORS_ORIGINS: '*',
         WHISPERX_DEVICE: 'cpu',
         KARAOKE_ENABLED_DEFAULT: 'true',
       },
@@ -207,6 +206,68 @@ export class AutocaptionStack extends cdk.Stack {
       deregistrationDelay: cdk.Duration.seconds(30),
     });
 
+    // Strip /api prefix so UI and API share one HTTPS CloudFront origin (no mixed content / CORS).
+    const apiPathRewrite = new cloudfront.Function(this, 'ApiPathRewrite', {
+      code: cloudfront.FunctionCode.fromInline(`
+function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+  if (uri === '/api' || uri.indexOf('/api/') === 0) {
+    var next = uri.slice(4);
+    request.uri = next.length > 0 ? next : '/';
+  }
+  return request;
+}
+`),
+    });
+
+    const albOrigin = new origins.LoadBalancerV2Origin(alb, {
+      protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
+      httpPort: 80,
+      readTimeout: cdk.Duration.seconds(180),
+      keepaliveTimeout: cdk.Duration.seconds(60),
+    });
+
+    const distribution = new cloudfront.Distribution(this, 'UiCdn', {
+      defaultBehavior: {
+        origin: new origins.S3Origin(uiBucket, { originAccessIdentity: oai }),
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      },
+      additionalBehaviors: {
+        '/api*': {
+          origin: albOrigin,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+          cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+          originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+          functionAssociations: [
+            {
+              function: apiPathRewrite,
+              eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+            },
+          ],
+        },
+      },
+      defaultRootObject: 'index.html',
+      // Only remap S3-style access denials for the SPA; do not rewrite API status codes.
+      errorResponses: [
+        {
+          httpStatus: 403,
+          responseHttpStatus: 200,
+          responsePagePath: '/index.html',
+          ttl: cdk.Duration.seconds(0),
+        },
+      ],
+    });
+
+    const apiBaseUrl = `https://${distribution.distributionDomainName}/api`;
+    const uiBaseUrl = `https://${distribution.distributionDomainName}`;
+
+    container.addEnvironment(
+      'CORS_ORIGINS',
+      `${uiBaseUrl},http://localhost:3000,http://127.0.0.1:3000`,
+    );
+
     const warmupFn = new lambda.Function(this, 'WarmupLambda', {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'index.handler',
@@ -236,18 +297,6 @@ def handler(event, context):
       },
     });
 
-    const distribution = new cloudfront.Distribution(this, 'UiCdn', {
-      defaultBehavior: {
-        origin: new origins.S3Origin(uiBucket, { originAccessIdentity: oai }),
-        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-      },
-      defaultRootObject: 'index.html',
-      errorResponses: [
-        { httpStatus: 403, responseHttpStatus: 200, responsePagePath: '/index.html' },
-        { httpStatus: 404, responseHttpStatus: 200, responsePagePath: '/index.html' },
-      ],
-    });
-
     const uiOut = path.join(__dirname, '..', '..', '..', 'out');
     if (fs.existsSync(uiOut)) {
       new s3deploy.BucketDeployment(this, 'DeployUi', {
@@ -259,8 +308,8 @@ def handler(event, context):
     }
 
     new cdk.CfnOutput(this, 'AlbDns', { value: alb.loadBalancerDnsName });
-    new cdk.CfnOutput(this, 'ApiBaseUrl', { value: `http://${alb.loadBalancerDnsName}` });
-    new cdk.CfnOutput(this, 'CloudFrontUrl', { value: `https://${distribution.distributionDomainName}` });
+    new cdk.CfnOutput(this, 'ApiBaseUrl', { value: apiBaseUrl });
+    new cdk.CfnOutput(this, 'CloudFrontUrl', { value: uiBaseUrl });
     new cdk.CfnOutput(this, 'WarmupUrl', { value: warmupUrl.url });
     new cdk.CfnOutput(this, 'BackendImageUri', { value: backendImage.imageUri });
     new cdk.CfnOutput(this, 'MediaBucketName', { value: mediaBucket.bucketName });

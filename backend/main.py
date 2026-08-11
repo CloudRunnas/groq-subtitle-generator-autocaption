@@ -29,14 +29,20 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Video Subtitle Generator", version="1.0.0")
 
 settings = get_settings()
-_cors = [o.strip() for o in (settings.cors_origins or "").split(",") if o.strip()] or ["http://localhost:3000"]
+_cors = [o.strip() for o in (settings.cors_origins or "").split(",") if o.strip()] or [
+    "http://localhost:3000"
+]
+# Browsers reject Access-Control-Allow-Origin: * together with credentials.
+_cors_wildcard = "*" in _cors
+_cors_origins = ["*"] if _cors_wildcard else _cors
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=(_cors + ["*"]) if not settings.backend_api_key else _cors,
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=not _cors_wildcard,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 app.add_middleware(ApiKeyMiddleware, api_key=settings.backend_api_key)
 
