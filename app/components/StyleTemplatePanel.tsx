@@ -55,6 +55,7 @@ export const emptyTemplate = (): StyleTemplate => ({
 type Props = {
   selectedSlug: string
   onSelectSlug: (slug: string) => void
+  apiKey?: string
 }
 
 function ColorField({
@@ -140,7 +141,7 @@ function RoleEditor({
   )
 }
 
-export default function StyleTemplatePanel({ selectedSlug, onSelectSlug }: Props) {
+export default function StyleTemplatePanel({ selectedSlug, onSelectSlug, apiKey }: Props) {
   const [templates, setTemplates] = useState<Array<{ name: string; slug: string }>>([])
   const [fonts, setFonts] = useState<Array<{ name: string; s3Key: string }>>([])
   const [draft, setDraft] = useState<StyleTemplate>(emptyTemplate())
@@ -188,7 +189,7 @@ export default function StyleTemplatePanel({ selectedSlug, onSelectSlug }: Props
 
   useEffect(() => {
     loadLists()
-  }, [loadLists])
+  }, [loadLists, apiKey])
 
   useEffect(() => {
     if (selectedSlug) loadTemplate(selectedSlug)

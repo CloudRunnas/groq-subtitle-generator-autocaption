@@ -92,6 +92,28 @@ jobs:
           npx cdk deploy AutocaptionStack --require-approval never \
             -c "stylesBucketName=${{ env.STYLES_BUCKET }}"
 
+      - name: Recycle API tasks for current secrets
+        run: |
+          set -euo pipefail
+          CLUSTER=$(aws ecs list-clusters --query "clusterArns[?contains(@, 'AutocaptionStack-Cluster')]" --output text | awk '{print $1}')
+          SVC=$(aws ecs list-services --cluster "$CLUSTER" --query 'serviceArns[0]' --output text)
+          echo "Recycling $SVC on $CLUSTER"
+          aws ecs update-service --cluster "$CLUSTER" --service "$SVC" --force-new-deployment >/dev/null
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SVC"
+
+      - name: Cloud E2E
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          API=$(aws cloudformation describe-stacks --stack-name AutocaptionStack \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" --output text)
+          ORIGIN=$(aws cloudformation describe-stacks --stack-name AutocaptionStack \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontUrl'].OutputValue" --output text)
+          echo "E2E against $API origin=$ORIGIN"
+          python -m pip install --upgrade pip
+          pip install pytest boto3
+          E2E_BASE_URL="$API" E2E_ORIGIN="$ORIGIN" PYTHONPATH=. pytest tests/e2e -q --tb=short
+
       - name: Print outputs
         run: |
           aws cloudformation describe-stacks --stack-name AutocaptionStack \
