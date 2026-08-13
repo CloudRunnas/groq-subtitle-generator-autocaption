@@ -1,5 +1,5 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form, BackgroundTasks
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import logging
@@ -14,7 +14,7 @@ from services.video_processing_service import VideoProcessingService
 from services.style_storage_service import StyleStorageService
 from services.style_bootstrap import bootstrap_styles, STROKE_PREVIEW_WIDTHS
 from services.job_store import build_job_store
-from services.media_store import MediaStore
+from services.media_store import MediaStore, result_download_filename
 from services.job_runtime import JobRuntime
 from models.style_template import StyleTemplate
 from utils.config import get_settings
@@ -51,6 +51,26 @@ style_storage = StyleStorageService(settings)
 media_store = MediaStore(settings)
 job_store = build_job_store(settings)
 active_jobs = JobRuntime(job_store, media_store)
+
+# Direct S3 GET for the browser; Fargate must not proxy the MP4.
+DOWNLOAD_URL_TTL_SECONDS = 12 * 60 * 60
+
+
+def _ensure_result_video_key(job_id: str, job: Dict) -> Optional[str]:
+    key = job.get("result_video_key")
+    if key:
+        return key
+    runtime = active_jobs.get(job_id) or {}
+    video_bytes = runtime.get("result_video")
+    if not video_bytes:
+        return None
+    key = media_store.new_key(job_id, "output", "result.mp4")
+    media_store.put_bytes(key, video_bytes, "video/mp4")
+    try:
+        job_store.update(job_id, result_video_key=key)
+    except KeyError:
+        pass
+    return key
 
 
 @app.on_event("startup")
@@ -876,27 +896,33 @@ async def get_word_timings(job_id: str):
 
 @app.get("/download/word-timings/{job_id}")
 async def download_word_timings(job_id: str):
-    """Download word-level timings as JSON (does not delete the job)"""
+    """Download word-level timings as JSON (does not delete the job)."""
     try:
-        if job_id not in active_jobs:
+        job = job_store.get(job_id)
+        if not job:
             raise HTTPException(status_code=404, detail="Job not found")
-
-        job = active_jobs[job_id]
-        if job["status"] != "completed":
+        if job.get("status") != "completed":
             raise HTTPException(status_code=400, detail="Job not completed yet")
 
         word_timings = job.get("word_timings") or []
+        key = job.get("word_timings_key")
+        if not word_timings and key:
+            raw = media_store.get_bytes(key)
+            payload = json.loads(raw.decode("utf-8"))
+            word_timings = payload.get("words", payload if isinstance(payload, list) else [])
+        if not word_timings:
+            runtime = active_jobs.get(job_id) or {}
+            word_timings = runtime.get("word_timings") or []
         if not word_timings:
             raise HTTPException(status_code=404, detail="No word timings available for this job")
 
-        payload = {
+        body = {
             "version": 1,
             "words": word_timings,
             "cue_rules": video_service.karaoke_service.cue_rules(),
         }
-        content = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        content = json.dumps(body, ensure_ascii=False, indent=2).encode("utf-8")
         filename = f"word_timings_{job_id}.json"
-
         return StreamingResponse(
             io.BytesIO(content),
             media_type="application/json",
@@ -913,43 +939,53 @@ async def download_word_timings(job_id: str):
 
 @app.get("/download/{job_id}")
 async def download_video(job_id: str):
-    """Download processed video with subtitles"""
+    """Return a 12h S3 GET URL for the rendered video (no proxy through Fargate)."""
     try:
-        if job_id not in active_jobs:
+        job = job_store.get(job_id)
+        if not job:
             raise HTTPException(status_code=404, detail="Job not found")
-        
-        job = active_jobs[job_id]
-        
-        if job["status"] != "completed":
+        if job.get("status") != "completed":
             raise HTTPException(status_code=400, detail="Job not completed yet")
-        
-        if "result_video" not in job:
+
+        key = _ensure_result_video_key(job_id, job)
+        if not key:
             raise HTTPException(status_code=404, detail="Processed video not found")
-        
-        video_bytes = job["result_video"]
-        
-        original_filename = job["filename"]
-        name, ext = original_filename.rsplit('.', 1)
-        download_filename = f"{name}_subtitled.{ext}"
-        
-        def cleanup_job():
-            if job_id in active_jobs:
-                del active_jobs[job_id]
-                logger.info(f"Cleaned up job from memory: {job_id}")
-        
-        def generate():
-            yield video_bytes
-            cleanup_job()
-        
+
+        filename = result_download_filename(job.get("filename"))
+        if media_store.use_s3:
+            url = media_store.presign_get(
+                key,
+                expires=DOWNLOAD_URL_TTL_SECONDS,
+                response_content_disposition=f'attachment; filename="{filename}"',
+                response_content_type="video/mp4",
+            )
+            if not url:
+                raise HTTPException(status_code=500, detail="Could not create download URL")
+            logger.info("Issued S3 download URL for job %s key=%s ttl=%ss", job_id, key, DOWNLOAD_URL_TTL_SECONDS)
+            return JSONResponse(
+                {
+                    "url": url,
+                    "expires_in": DOWNLOAD_URL_TTL_SECONDS,
+                    "filename": filename,
+                }
+            )
+
+        video_bytes = media_store.get_bytes(key) if media_store.exists(key) else None
+        if not video_bytes:
+            runtime = active_jobs.get(job_id) or {}
+            video_bytes = runtime.get("result_video")
+        if not video_bytes:
+            raise HTTPException(status_code=404, detail="Processed video not found")
         return StreamingResponse(
-            generate(),
+            io.BytesIO(video_bytes),
             media_type="video/mp4",
             headers={
-                "Content-Disposition": f"attachment; filename={download_filename}",
-                "Content-Length": str(len(video_bytes))
-            }
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Length": str(len(video_bytes)),
+            },
         )
-        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error downloading video: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

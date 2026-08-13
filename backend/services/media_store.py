@@ -9,6 +9,14 @@ from typing import Optional, Tuple
 logger = logging.getLogger(__name__)
 
 
+def result_download_filename(filename: Optional[str]) -> str:
+    original = filename or "video.mp4"
+    if "." in original:
+        name, ext = original.rsplit(".", 1)
+        return f"{name}_subtitled.{ext}"
+    return f"{original}_subtitled.mp4"
+
+
 class MediaStore:
     def __init__(self, settings):
         self.settings = settings
@@ -69,12 +77,23 @@ class MediaStore:
             ExpiresIn=expires,
         )
 
-    def presign_get(self, key: str, expires: int = 3600) -> Optional[str]:
+    def presign_get(
+        self,
+        key: str,
+        expires: int = 3600,
+        response_content_disposition: Optional[str] = None,
+        response_content_type: Optional[str] = None,
+    ) -> Optional[str]:
         if not self.use_s3:
             return None
+        params = {"Bucket": self.bucket, "Key": key}
+        if response_content_disposition:
+            params["ResponseContentDisposition"] = response_content_disposition
+        if response_content_type:
+            params["ResponseContentType"] = response_content_type
         return self._s3.generate_presigned_url(
             "get_object",
-            Params={"Bucket": self.bucket, "Key": key},
+            Params=params,
             ExpiresIn=expires,
         )
 
