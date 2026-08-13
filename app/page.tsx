@@ -655,20 +655,37 @@ export default function VideoSubtitleGenerator() {
 
   const downloadVideo = useCallback(async () => {
     if (!jobId) return
-    
+
     try {
       const response = await apiFetch(`/download/${jobId}`)
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `subtitled_video_${jobId}.mp4`
-        a.click()
-        window.URL.revokeObjectURL(url)
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        throw new Error(errorData?.detail || 'Download failed')
       }
+      const contentType = response.headers.get('content-type') || ''
+      if (contentType.includes('application/json')) {
+        const data = await response.json()
+        if (!data?.url) {
+          throw new Error('No download URL')
+        }
+        const a = document.createElement('a')
+        a.href = data.url
+        a.rel = 'noopener'
+        a.download = data.filename || `subtitled_video_${jobId}.mp4`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        return
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `subtitled_video_${jobId}.mp4`
+      a.click()
+      window.URL.revokeObjectURL(url)
     } catch (err) {
-      setError('Download failed')
+      setError(err instanceof Error ? err.message : 'Download failed')
     }
   }, [jobId])
 
