@@ -16,6 +16,25 @@ PUBLIC_PATHS = {
     "/redoc",
 }
 
+# Read-only style catalog (templates, fonts, stroke previews). Mutations stay protected.
+_PUBLIC_GET_PREFIXES = (
+    "/styles/templates",
+    "/styles/fonts",
+    "/styles/stroke-previews",
+)
+
+
+def is_public_request(method: str, path: str) -> bool:
+    if path in PUBLIC_PATHS:
+        return True
+    if path.startswith("/styles/stroke-previews/"):
+        return True
+    if (method or "").upper() in ("GET", "HEAD", "OPTIONS"):
+        for prefix in _PUBLIC_GET_PREFIXES:
+            if path == prefix or path.startswith(prefix + "/"):
+                return True
+    return False
+
 
 def extract_api_key(headers: dict[str, str], query_api_key: str = "") -> str:
     """headers keys should be lower-case."""
@@ -33,6 +52,8 @@ def api_key_accepted(provided: str, expected: str) -> bool:
         return True
     if not provided:
         return False
+    if len(provided) != len(expected):
+        return False
     return secrets.compare_digest(provided, expected)
 
 
@@ -46,10 +67,7 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         path = request.url.path
-        if path in PUBLIC_PATHS or path.startswith("/styles/stroke-previews/"):
-            return await call_next(request)
-
-        if request.method == "OPTIONS":
+        if request.method == "OPTIONS" or is_public_request(request.method, path):
             return await call_next(request)
 
         provided = extract_api_key(

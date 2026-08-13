@@ -986,6 +986,7 @@ export default function VideoSubtitleGenerator() {
                   <StyleTemplatePanel
                     selectedSlug={styleTemplateSlug}
                     onSelectSlug={setStyleTemplateSlug}
+                    apiKey={apiKey}
                   />
                 )}
 

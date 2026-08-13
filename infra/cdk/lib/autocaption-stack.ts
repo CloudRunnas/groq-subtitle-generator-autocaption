@@ -285,9 +285,9 @@ def handler(event, context):
     try:
         with urllib.request.urlopen(base + "/warmup", timeout=10) as r:
             body = r.read().decode()
-        return {"statusCode": 200, "headers": {"Access-Control-Allow-Origin": "*", "Content-Type": "application/json"}, "body": body}
+        return {"statusCode": 200, "headers": {"Content-Type": "application/json"}, "body": body}
     except Exception as e:
-        return {"statusCode": 502, "headers": {"Access-Control-Allow-Origin": "*"}, "body": json.dumps({"error": str(e)})}
+        return {"statusCode": 502, "headers": {"Content-Type": "application/json"}, "body": json.dumps({"error": str(e)})}
 `),
     });
     const warmupUrl = warmupFn.addFunctionUrl({

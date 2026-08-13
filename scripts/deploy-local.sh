@@ -38,4 +38,4 @@ npx cdk deploy AutocaptionStack --require-approval never \
   -c "stylesBucketName=${AWS_S3_BUCKET:-autocaption-styles-deadzone-423623826655}"
 
 echo "==> Done. Check CloudFormation outputs for ApiBaseUrl / CloudFrontUrl / WarmupUrl / ApiKeySecretArn."
-echo "    Re-build frontend with NEXT_PUBLIC_API_URL=<ApiBaseUrl> NEXT_PUBLIC_WARMUP_URL=<WarmupUrl> and redeploy to bake URLs into the static UI."
+echo "    Re-build frontend with NEXT_PUBLIC_API_URL=<ApiBaseUrl> and redeploy to bake the API URL into the static UI."

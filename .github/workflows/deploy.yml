@@ -53,23 +53,17 @@ jobs:
         run: |
           API=$(aws cloudformation describe-stacks --stack-name AutocaptionStack \
             --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" --output text 2>/dev/null || true)
-          WARM=$(aws cloudformation describe-stacks --stack-name AutocaptionStack \
-            --query "Stacks[0].Outputs[?OutputKey=='WarmupUrl'].OutputValue" --output text 2>/dev/null || true)
           echo "api_url=${API:-}" >> "$GITHUB_OUTPUT"
-          echo "warmup_url=${WARM:-}" >> "$GITHUB_OUTPUT"
 
       - name: Frontend static export
         run: |
           npm ci
           export NEXT_PUBLIC_API_URL="${{ steps.stack.outputs.api_url }}"
-          export NEXT_PUBLIC_WARMUP_URL="${{ steps.stack.outputs.warmup_url }}"
           if [ -z "$NEXT_PUBLIC_API_URL" ] || [ "$NEXT_PUBLIC_API_URL" = "None" ]; then
             export NEXT_PUBLIC_API_URL="http://localhost:8000"
           fi
-          if [ "$NEXT_PUBLIC_WARMUP_URL" = "None" ]; then
-            export NEXT_PUBLIC_WARMUP_URL=""
-          fi
-          echo "Building UI with API=$NEXT_PUBLIC_API_URL WARMUP=$NEXT_PUBLIC_WARMUP_URL"
+          unset NEXT_PUBLIC_WARMUP_URL
+          echo "Building UI with API=$NEXT_PUBLIC_API_URL (same-origin warmup)"
           npm run build
 
       - name: Set up Docker Buildx
@@ -92,13 +86,33 @@ jobs:
         run: |
           API=$(aws cloudformation describe-stacks --stack-name AutocaptionStack \
             --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" --output text)
-          WARM=$(aws cloudformation describe-stacks --stack-name AutocaptionStack \
-            --query "Stacks[0].Outputs[?OutputKey=='WarmupUrl'].OutputValue" --output text)
-          echo "Rebuilding UI with API=$API WARMUP=$WARM"
-          NEXT_PUBLIC_API_URL="$API" NEXT_PUBLIC_WARMUP_URL="$WARM" npm run build
+          echo "Rebuilding UI with API=$API (same-origin warmup)"
+          NEXT_PUBLIC_API_URL="$API" npm run build
           cd infra/cdk
           npx cdk deploy AutocaptionStack --require-approval never \
             -c "stylesBucketName=${{ env.STYLES_BUCKET }}"
+
+      - name: Recycle API tasks for current secrets
+        run: |
+          set -euo pipefail
+          CLUSTER=$(aws ecs list-clusters --query "clusterArns[?contains(@, 'AutocaptionStack-Cluster')]" --output text | awk '{print $1}')
+          SVC=$(aws ecs list-services --cluster "$CLUSTER" --query 'serviceArns[0]' --output text)
+          echo "Recycling $SVC on $CLUSTER"
+          aws ecs update-service --cluster "$CLUSTER" --service "$SVC" --force-new-deployment >/dev/null
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SVC"
+
+      - name: Cloud E2E
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          API=$(aws cloudformation describe-stacks --stack-name AutocaptionStack \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" --output text)
+          ORIGIN=$(aws cloudformation describe-stacks --stack-name AutocaptionStack \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontUrl'].OutputValue" --output text)
+          echo "E2E against $API origin=$ORIGIN"
+          python -m pip install --upgrade pip
+          pip install pytest boto3
+          E2E_BASE_URL="$API" E2E_ORIGIN="$ORIGIN" PYTHONPATH=. pytest tests/e2e -q --tb=short
 
       - name: Print outputs
         run: |

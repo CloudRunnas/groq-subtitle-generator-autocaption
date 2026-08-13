@@ -12,9 +12,6 @@ function defaultApiBase(): string {
 
 export const API_BASE = defaultApiBase()
 
-export const WARMUP_URL =
-  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_WARMUP_URL) || ''
-
 const KEY_STORAGE = 'autocaption_api_key'
 
 export function getStoredApiKey(): string {
@@ -37,11 +34,10 @@ export function apiHeaders(extra?: HeadersInit): HeadersInit {
 }
 
 export async function warmupBackend(): Promise<void> {
+  // Same-origin /api/warmup via CloudFront. Do not call the Lambda Function URL:
+  // Function URL CORS plus handler ACAO headers get concatenated into an invalid
+  // Access-Control-Allow-Origin value (e.g. "*, https://….cloudfront.net").
   try {
-    if (WARMUP_URL) {
-      await fetch(WARMUP_URL, { method: 'GET', mode: 'cors' })
-      return
-    }
     await fetch(`${API_BASE}/warmup`, {
       method: 'GET',
       headers: apiHeaders(),
