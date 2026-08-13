@@ -2,14 +2,50 @@
 from __future__ import annotations
 
 import logging
-import time
+import math
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 TTL_DAYS = 7
+
+
+def _to_ddb(value: Any) -> Any:
+    """Convert Python values into DynamoDB-safe types (float → Decimal)."""
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, float):
+        if math.isnan(value) or math.isinf(value):
+            return None
+        return Decimal(str(value))
+    if isinstance(value, dict):
+        out: Dict[str, Any] = {}
+        for k, v in value.items():
+            converted = _to_ddb(v)
+            if converted is None and v is not None:
+                continue
+            out[k] = converted
+        return out
+    if isinstance(value, (list, tuple)):
+        return [_to_ddb(v) for v in value]
+    return value
+
+
+def _from_ddb(value: Any) -> Any:
+    """Convert DynamoDB Decimals back to int/float for API JSON."""
+    if isinstance(value, Decimal):
+        as_int = int(value)
+        if Decimal(as_int) == value:
+            return as_int
+        return float(value)
+    if isinstance(value, dict):
+        return {k: _from_ddb(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_from_ddb(v) for v in value]
+    return value
 
 
 def _now_iso() -> str:
@@ -145,13 +181,13 @@ class DynamoJobStore(JobStore):
             if k in ("job_id", "tenant_id", "status", "created_at", "updated_at"):
                 continue
             # DynamoDB-friendly keys (camelCase for GSI attrs already set)
-            item[k] = v
+            item[k] = _to_ddb(v)
         if job.get("completed_at"):
             item["completedAt"] = job["completed_at"]
-        return item
+        return _to_ddb(item)
 
     def _from_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
-        return {
+        job = {
             "job_id": item.get("jobId"),
             "tenant_id": item.get("tenantId", "default"),
             "status": item.get("status"),
@@ -175,6 +211,7 @@ class DynamoJobStore(JobStore):
             "karaoke_layout": item.get("karaoke_layout"),
             "has_word_timings": bool(item.get("has_word_timings", False)),
         }
+        return _from_ddb(job)
 
     def create(self, job_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         created = _now_iso()
