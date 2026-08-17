@@ -184,36 +184,64 @@ class VideoProcessingService:
         fonts_dir: Optional[str] = None,
     ) -> bytes:
         """Render video with karaoke ASS burned in."""
-        video_size = await self.get_video_dimensions(video_data)
+        async with self.temporary_file(suffix=".mp4") as temp_video_path:
+            with open(temp_video_path, 'wb') as f:
+                f.write(video_data)
+            return await self.render_with_karaoke_from_path(
+                temp_video_path,
+                word_timings,
+                style_template=style_template,
+                fonts_dir=fonts_dir,
+            )
+
+    async def render_with_karaoke_from_path(
+        self,
+        video_path: str,
+        word_timings: list,
+        style_template=None,
+        fonts_dir: Optional[str] = None,
+    ) -> bytes:
+        """Render karaoke ASS from a video already on disk (avoids a second RAM copy)."""
+        video_size = await self.get_video_dimensions_from_path(video_path)
         ass_content = self.karaoke_service.generate_ass_content(
             word_timings,
             video_size=video_size,
             style_template=style_template,
         )
-        async with self.temporary_file(suffix=".mp4") as temp_video_path:
-            with open(temp_video_path, 'wb') as f:
-                f.write(video_data)
-            async with self.temporary_file(suffix=".ass") as temp_ass_path:
-                with open(temp_ass_path, 'w', encoding='utf-8') as f:
-                    f.write(ass_content)
-                return await self._render_video_to_bytes(
-                    temp_video_path,
-                    temp_ass_path,
-                    fonts_dir=fonts_dir,
-                )
+        async with self.temporary_file(suffix=".ass") as temp_ass_path:
+            with open(temp_ass_path, 'w', encoding='utf-8') as f:
+                f.write(ass_content)
+            return await self._render_video_to_bytes(
+                video_path,
+                temp_ass_path,
+                fonts_dir=fonts_dir,
+            )
 
     async def get_video_dimensions(self, video_data: bytes):
         """Return (width, height) of the primary video stream."""
         try:
             info = await self.get_video_info(video_data)
-            for stream in info.get("streams", []):
-                if stream.get("codec_type") == "video":
-                    width = int(stream.get("width") or 0)
-                    height = int(stream.get("height") or 0)
-                    if width > 0 and height > 0:
-                        return width, height
+            return self._dimensions_from_probe(info)
         except Exception as e:
             logger.warning(f"Could not probe video dimensions, using 1920x1080: {e}")
+        return 1920, 1080
+
+    async def get_video_dimensions_from_path(self, video_path: str):
+        try:
+            info = await self.get_video_info_from_path(video_path)
+            return self._dimensions_from_probe(info)
+        except Exception as e:
+            logger.warning(f"Could not probe video dimensions, using 1920x1080: {e}")
+        return 1920, 1080
+
+    @staticmethod
+    def _dimensions_from_probe(info: Dict):
+        for stream in info.get("streams", []):
+            if stream.get("codec_type") == "video":
+                width = int(stream.get("width") or 0)
+                height = int(stream.get("height") or 0)
+                if width > 0 and height > 0:
+                    return width, height
         return 1920, 1080
 
     async def align_and_build_karaoke(
@@ -229,42 +257,50 @@ class VideoProcessingService:
         async with self.temporary_file(suffix=".mp4") as temp_video_path:
             with open(temp_video_path, 'wb') as f:
                 f.write(video_data)
-            async with self.temporary_file(suffix=".wav") as temp_audio_path:
-                await self._extract_audio(temp_video_path, temp_audio_path)
-                return await self.alignment_service.align_segments(
-                    temp_audio_path,
-                    cue_segments,
-                    language_code=language_code,
-                    release_after=True,
-                )
+            return await self.align_and_build_karaoke_from_path(
+                temp_video_path,
+                cue_segments,
+                language_code=language_code,
+            )
+
+    async def align_and_build_karaoke_from_path(
+        self,
+        video_path: str,
+        cue_segments: list,
+        language_code: str = "de",
+    ) -> list:
+        async with self.temporary_file(suffix=".wav") as temp_audio_path:
+            await self._extract_audio(video_path, temp_audio_path)
+            return await self.alignment_service.align_segments(
+                temp_audio_path,
+                cue_segments,
+                language_code=language_code,
+                release_after=True,
+            )
 
     async def get_video_info(self, video_data: bytes) -> Dict:
         """Get video information from bytes"""
+        async with self.temporary_file(suffix=".mp4") as temp_video_path:
+            with open(temp_video_path, 'wb') as f:
+                f.write(video_data)
+            return await self.get_video_info_from_path(temp_video_path)
+
+    async def get_video_info_from_path(self, video_path: str) -> Dict:
         try:
-            async with self.temporary_file(suffix=".mp4") as temp_video_path:
-                # write video data to temporary file
-                with open(temp_video_path, 'wb') as f:
-                    f.write(video_data)
-                
-                cmd = [
-                    'ffprobe', '-v', 'quiet', '-print_format', 'json',
-                    '-show_format', '-show_streams', temp_video_path
-                ]
-                
-                process = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                
-                stdout, stderr = await process.communicate()
-                
-                if process.returncode != 0:
-                    raise Exception(f"Failed to get video info: {stderr.decode()}")
-                
-                import json
-                return json.loads(stdout.decode())
-                
+            cmd = [
+                'ffprobe', '-v', 'quiet', '-print_format', 'json',
+                '-show_format', '-show_streams', video_path
+            ]
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            if process.returncode != 0:
+                raise Exception(f"Failed to get video info: {stderr.decode()}")
+            import json
+            return json.loads(stdout.decode())
         except Exception as e:
             logger.error(f"Error getting video info: {str(e)}")
             raise

@@ -7,9 +7,9 @@ from utils.auth import (
 )
 
 
-def test_public_paths_include_health_warmup():
+def test_public_paths_include_health():
     assert "/health" in PUBLIC_PATHS
-    assert "/warmup" in PUBLIC_PATHS
+    assert "/warmup" not in PUBLIC_PATHS
 
 
 def test_style_catalog_get_is_public():

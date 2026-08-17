@@ -97,14 +97,6 @@ def test_health_ok():
     _assert_cors_ok(headers, _origin())
 
 
-def test_warmup_ok():
-    status, headers, body = _request("/warmup", headers={"Origin": _origin()})
-    assert status == 200, body
-    payload = json.loads(body.decode())
-    assert payload.get("status") in {"warm", "ok"} or "ts" in payload or payload
-    _assert_cors_ok(headers, _origin())
-
-
 def test_templates_list_public_and_cors():
     origin = _origin()
     status, headers, body = _request("/styles/templates", headers={"Origin": origin})
@@ -153,6 +145,17 @@ def test_protected_route_without_key_is_401():
     _assert_cors_ok(headers, _origin())
 
 
+def test_presign_without_key_is_401():
+    status, headers, body = _request(
+        "/jobs/presign",
+        method="POST",
+        headers={"Origin": _origin(), "Content-Type": "application/json"},
+        data=b'{"filename":"clip.mp4","content_type":"video/mp4"}',
+    )
+    assert status == 401, body
+    _assert_cors_ok(headers, _origin())
+
+
 def test_protected_route_with_current_secret_not_401():
     key = _api_key()
     assert key, "API key from Secrets Manager was empty"
@@ -175,7 +178,7 @@ def test_protected_route_with_current_secret_not_401():
 def test_no_comma_star_cors_on_api():
     """Regression: Function URL / FastAPI must not emit '*, https://…'."""
     origin = _origin()
-    for path in ("/health", "/warmup", "/styles/templates"):
+    for path in ("/health", "/styles/templates"):
         _, headers, _ = _request(path, headers={"Origin": origin})
         for key, value in headers.items():
             if key.lower() == "access-control-allow-origin":

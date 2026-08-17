@@ -10,7 +10,6 @@ from starlette.responses import JSONResponse
 PUBLIC_PATHS = {
     "/",
     "/health",
-    "/warmup",
     "/docs",
     "/openapi.json",
     "/redoc",

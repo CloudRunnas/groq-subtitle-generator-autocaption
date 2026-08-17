@@ -1,10 +1,9 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form, BackgroundTasks
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form, BackgroundTasks, Request
 from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import logging
 from typing import Optional, Dict
-import asyncio
 import json
 from datetime import datetime
 import io
@@ -16,6 +15,7 @@ from services.style_bootstrap import bootstrap_styles, STROKE_PREVIEW_WIDTHS
 from services.job_store import build_job_store
 from services.media_store import MediaStore, result_download_filename
 from services.job_runtime import JobRuntime
+from services.job_pipeline import JobPipeline, parse_word_timings_payload, stage_for_mode
 from models.style_template import StyleTemplate
 from utils.config import get_settings
 from utils.auth import ApiKeyMiddleware
@@ -51,6 +51,13 @@ style_storage = StyleStorageService(settings)
 media_store = MediaStore(settings)
 job_store = build_job_store(settings)
 active_jobs = JobRuntime(job_store, media_store)
+pipeline = JobPipeline(
+    job_store=job_store,
+    media_store=media_store,
+    video_service=video_service,
+    style_storage=style_storage,
+    settings=settings,
+)
 
 # Direct S3 GET for the browser; Fargate must not proxy the MP4.
 DOWNLOAD_URL_TTL_SECONDS = 12 * 60 * 60
@@ -78,20 +85,10 @@ async def _startup_styles():
     global style_storage
     try:
         style_storage = await bootstrap_styles()
+        pipeline.style_storage = style_storage
         logger.info("Style templates bootstrapped (%s)", style_storage.mode)
     except Exception as e:
         logger.warning("Style bootstrap failed: %s", e)
-
-
-def _resolve_job_style(job: dict):
-    slug = job.get("style_template_slug")
-    if not slug:
-        return None, None
-    template = style_storage.get_template(slug)
-    if not template:
-        return None, None
-    fonts_dir = style_storage.fonts_dir_for_template(template)
-    return template, fonts_dir
 
 
 @app.get("/")
@@ -104,22 +101,36 @@ async def health():
     return {"status": "ok", "storage": "dynamodb" if settings.jobs_table_name else "memory"}
 
 
-@app.get("/warmup")
-async def warmup():
-    """Lightweight ping to reduce cold starts (UI calls via Warmup Lambda)."""
-    _ = job_store.list_by_tenant("default", limit=1)
-    return {"status": "warm", "ts": datetime.now().isoformat()}
+async def _read_json_or_form(request: Request):
+    ctype = (request.headers.get("content-type") or "").lower()
+    if "application/json" in ctype:
+        data = await request.json()
+        return data if isinstance(data, dict) else {}
+    if "multipart/form-data" in ctype or "application/x-www-form-urlencoded" in ctype:
+        form = await request.form()
+        return {k: form.get(k) for k in form.keys()}
+    try:
+        data = await request.json()
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
 
 
 @app.post("/jobs/presign")
-async def presign_upload(filename: str = Form("video.mp4"), content_type: str = Form("video/mp4")):
-    """Create job + S3/local upload target for large files."""
+async def presign_upload(request: Request):
+    """Create job + S3 upload target for large files (CloudFront / Lambda path)."""
+    body = await _read_json_or_form(request)
+    filename = str(body.get("filename") or "video.mp4")
+    content_type = str(body.get("content_type") or "video/mp4")
+    mode = str(body.get("mode") or "generate")
+    if mode not in ("generate", "burn", "burn_words"):
+        raise HTTPException(status_code=400, detail="Mode must be 'generate', 'burn', or 'burn_words'")
     job_id = str(uuid.uuid4())
     key = media_store.new_key(job_id, "input", filename)
     active_jobs[job_id] = {
         "status": "awaiting_upload",
         "filename": filename,
-        "mode": "generate",
+        "mode": mode,
         "input_video_key": key,
         "progress": 0,
         "karaoke": settings.karaoke_enabled_default,
@@ -308,86 +319,81 @@ async def upload_video(
 
 def _parse_word_timings_payload(payload) -> tuple:
     """Validate and normalize word timings JSON. Returns (words, window_size)."""
-    if isinstance(payload, list):
-        words_raw = payload
-        window_size = settings.karaoke_window_size
-    elif isinstance(payload, dict):
-        words_raw = payload.get("words")
-        window_size = int(payload.get("window_size") or settings.karaoke_window_size)
-    else:
-        raise HTTPException(status_code=400, detail="Word timings JSON must be an object or array")
+    try:
+        return parse_word_timings_payload(payload, settings.karaoke_window_size)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
-    if not isinstance(words_raw, list) or not words_raw:
-        raise HTTPException(status_code=400, detail="Word timings must include a non-empty 'words' array")
 
-    words = []
-    for i, item in enumerate(words_raw):
-        if not isinstance(item, dict):
-            raise HTTPException(status_code=400, detail=f"Invalid word entry at index {i}")
-        text = str(item.get("word", "")).strip()
-        if not text:
-            continue
-        try:
-            start = float(item["start"])
-            end = float(item["end"])
-        except (KeyError, TypeError, ValueError):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Word entry {i} needs numeric 'start' and 'end'",
-            )
-        if end < start:
-            end = start + 0.05
-        words.append({
-            "word": text,
-            "start": start,
-            "end": end,
-            "score": item.get("score"),
-            "cue_index": item.get("cue_index"),
-            "aligned": item.get("aligned", True),
-        })
+def _truthy(value) -> Optional[bool]:
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return value
+    return str(value).lower() in ("1", "true", "yes", "on")
 
-    if not words:
-        raise HTTPException(status_code=400, detail="No valid words found in word timings file")
 
-    words.sort(key=lambda w: w["start"])
-    return words, max(1, window_size)
+async def _run_pipeline_stage(job_id: str, stage: str) -> None:
+    await pipeline.run_stage(job_id, stage)
 
 
 @app.post("/process/{job_id}")
-async def process_video(
-    job_id: str,
-    background_tasks: BackgroundTasks,
-    target_language: Optional[str] = Form(None),
-    source_language: Optional[str] = Form(None),
-    karaoke: Optional[str] = Form(None),
-    style_template_slug: Optional[str] = Form(None),
-):
-    """Start video processing (generate, burn SRT, or burn word timings)"""
+async def process_video(job_id: str, request: Request, background_tasks: BackgroundTasks):
+    """Start video processing (generate, burn SRT, or burn word timings)."""
     try:
         if job_id not in active_jobs:
             raise HTTPException(status_code=404, detail="Job not found")
-        
+
         job = active_jobs[job_id]
-        
-        if job["status"] != "uploaded":
+        body = await _read_json_or_form(request)
+
+        status = job.get("status")
+        if status == "awaiting_upload":
+            key = job.get("input_video_key")
+            if not key or not media_store.exists(key):
+                raise HTTPException(status_code=400, detail="Video upload not found")
+            job["status"] = "uploaded"
+        elif status != "uploaded":
             raise HTTPException(status_code=400, detail="Job not ready for processing")
 
         mode = job.get("mode", "generate")
-        if style_template_slug:
-            job["style_template_slug"] = style_template_slug.strip()
+        slug = body.get("style_template_slug")
+        if slug:
+            job["style_template_slug"] = str(slug).strip()
 
+        karaoke_flag = _truthy(body.get("karaoke"))
         karaoke_enabled = settings.karaoke_enabled_default
         if mode == "burn_words":
             karaoke_enabled = True
-        elif karaoke is not None:
-            karaoke_enabled = str(karaoke).lower() in ("1", "true", "yes", "on")
+        elif karaoke_flag is not None:
+            karaoke_enabled = karaoke_flag
         job["karaoke"] = karaoke_enabled
 
+        target_language = body.get("target_language")
+        source_language = body.get("source_language")
+        if target_language:
+            job["target_language"] = target_language
+        if source_language:
+            job["source_language"] = source_language
+
+        srt_content = body.get("srt_content")
+        if srt_content:
+            srt_key = media_store.new_key(job_id, "meta", "input.srt")
+            media_store.put_bytes(srt_key, str(srt_content).encode("utf-8"), "application/x-subrip")
+            job["srt_key"] = srt_key
+
+        word_timings_payload = body.get("word_timings")
+        if word_timings_payload is not None:
+            words, window_size = _parse_word_timings_payload(word_timings_payload)
+            wt_key = pipeline.persist_word_timings(job_id, words)
+            job["word_timings_key"] = wt_key
+            job["window_size"] = window_size
+            job["has_word_timings"] = True
+
         if mode == "burn_words":
-            if not job.get("word_timings"):
+            if not job.get("word_timings") and not job.get("word_timings_key"):
                 raise HTTPException(status_code=400, detail="No word timings available for burn_words mode")
-            background_tasks.add_task(burn_word_timings_background, job_id)
-            logger.info(f"Started burn-word-timings processing for job: {job_id}")
+            background_tasks.add_task(_run_pipeline_stage, job_id, "burn_words")
             return {
                 "job_id": job_id,
                 "status": "processing_started",
@@ -397,23 +403,14 @@ async def process_video(
             }
 
         if mode == "burn":
-            if not job.get("srt_content"):
+            if not job.get("srt_content") and not job.get("srt_key") and not srt_content:
                 raise HTTPException(status_code=400, detail="No SRT content available for burn mode")
-            if not source_language:
+            if not job.get("source_language"):
                 raise HTTPException(status_code=400, detail="source_language is required for burn mode")
-            if not target_language:
+            if not job.get("target_language"):
                 raise HTTPException(status_code=400, detail="target_language is required for burn mode")
-
-            job["source_language"] = source_language
-            job["target_language"] = target_language
-
-            background_tasks.add_task(
-                burn_subtitles_background,
-                job_id,
-                source_language,
-                target_language
-            )
-            logger.info(f"Started burn-subtitles processing for job: {job_id} (karaoke={karaoke_enabled})")
+            background_tasks.add_task(_run_pipeline_stage, job_id, "burn")
+            logger.info("Started burn for job %s (karaoke=%s)", job_id, karaoke_enabled)
             return {
                 "job_id": job_id,
                 "status": "processing_started",
@@ -422,21 +419,11 @@ async def process_video(
                 "karaoke": karaoke_enabled,
             }
 
-        if not target_language:
+        if not job.get("target_language"):
             raise HTTPException(status_code=400, detail="target_language is required for generate mode")
-        
-        job["target_language"] = target_language
-        
-        background_tasks.add_task(
-            process_video_background,
-            job_id,
-            job["video_data"],
-            target_language,
-            source_language
-        )
-        
-        logger.info(f"Started processing for job: {job_id} (karaoke={karaoke_enabled})")
-        
+
+        background_tasks.add_task(_run_pipeline_stage, job_id, stage_for_mode("generate"))
+        logger.info("Started transcribe for job %s (karaoke=%s)", job_id, karaoke_enabled)
         return {
             "job_id": job_id,
             "status": "processing_started",
@@ -444,263 +431,13 @@ async def process_video(
             "mode": "generate",
             "karaoke": karaoke_enabled,
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error starting processing: {str(e)}")
+        logger.error("Error starting processing: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-async def burn_word_timings_background(job_id: str):
-    """Burn karaoke ASS from precomputed word timings (skip align)."""
-    try:
-        job = active_jobs[job_id]
-        job["status"] = "generating_karaoke"
-        job["progress"] = 40
-        job["error"] = ""
-
-        video_data = job["video_data"]
-        word_timings = job["word_timings"]
-
-        job["status"] = "rendering_video"
-        job["progress"] = 70
-        template, fonts_dir = _resolve_job_style(job)
-        result_video_bytes = await video_service.render_with_karaoke(
-            video_data,
-            word_timings,
-            style_template=template,
-            fonts_dir=fonts_dir,
-        )
-
-        job["status"] = "completed"
-        job["progress"] = 100
-        job["result_video"] = result_video_bytes
-        job["karaoke"] = True
-        job["karaoke_layout"] = video_service.karaoke_service.layout_css()
-        job["completed_at"] = datetime.now().isoformat()
-
-        del job["video_data"]
-        logger.info(f"Burn-word-timings job completed successfully: {job_id}")
-
-    except Exception as e:
-        logger.error(f"Error burning word timings for job {job_id}: {str(e)}")
-        if job_id in active_jobs:
-            active_jobs[job_id]["status"] = "failed"
-            active_jobs[job_id]["error"] = str(e)
-            active_jobs[job_id]["progress"] = 0
-
-
-def _segments_to_align_cues(segments) -> list:
-    cues = []
-    for seg in segments:
-        text = seg.text if hasattr(seg, "text") else seg.get("text", "")
-        start = seg.start if hasattr(seg, "start") else seg["start"]
-        end = seg.end if hasattr(seg, "end") else seg["end"]
-        text = (text or "").replace("\n", " ").strip()
-        if not text:
-            continue
-        cues.append({"text": text, "start": float(start), "end": float(end)})
-    return cues
-
-
-async def _render_final_video(
-    job: Dict,
-    video_data: bytes,
-    final_transcription,
-    align_language: str,
-) -> bytes:
-    """Render with karaoke ASS when enabled, otherwise plain SRT."""
-    karaoke_enabled = job.get("karaoke", settings.karaoke_enabled_default)
-    cues = _segments_to_align_cues(final_transcription.segments)
-
-    if karaoke_enabled and cues:
-        job["status"] = "aligning"
-        job["progress"] = 75
-        job["error"] = ""
-        word_timings = await video_service.align_and_build_karaoke(
-            video_data,
-            cues,
-            language_code=align_language or "de",
-        )
-        job["word_timings"] = word_timings
-
-        job["status"] = "generating_karaoke"
-        job["progress"] = 88
-
-        job["status"] = "rendering_video"
-        job["progress"] = 92
-        template, fonts_dir = _resolve_job_style(job)
-        result = await video_service.render_with_karaoke(
-            video_data,
-            word_timings,
-            style_template=template,
-            fonts_dir=fonts_dir,
-        )
-        job["karaoke_layout"] = video_service.karaoke_service.layout_css()
-        return result
-
-    # Plain SRT burn
-    srt_content = await video_service.subtitle_service.generate_srt_content(final_transcription)
-    job["word_timings"] = []
-    job["karaoke_layout"] = None
-    job["status"] = "rendering_video"
-    job["progress"] = 90
-
-    async with video_service.temporary_file(suffix=".mp4") as temp_video_path:
-        with open(temp_video_path, 'wb') as f:
-            f.write(video_data)
-        async with video_service.temporary_file(suffix=".srt") as temp_subtitle_path:
-            with open(temp_subtitle_path, 'w', encoding='utf-8') as f:
-                f.write(srt_content)
-            return await video_service._render_video_to_bytes(temp_video_path, temp_subtitle_path)
-
-
-async def burn_subtitles_background(job_id: str, source_language: str, target_language: str):
-    """Burn an uploaded SRT into the video, optionally translating + karaoke aligning"""
-    try:
-        import tempfile
-        import os
-        import pysrt
-        from models.requests import TranscriptionSegment, TranscriptionResult
-
-        job = active_jobs[job_id]
-        job["status"] = "generating_subtitles"
-        job["progress"] = 20
-        job["error"] = ""
-
-        video_data = job["video_data"]
-        srt_content = job["srt_content"]
-
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.srt', delete=False, encoding='utf-8') as tmp:
-            tmp.write(srt_content)
-            tmp_path = tmp.name
-
-        try:
-            subs = pysrt.open(tmp_path, encoding='utf-8')
-            segments = []
-            for sub in subs:
-                start = (
-                    sub.start.hours * 3600
-                    + sub.start.minutes * 60
-                    + sub.start.seconds
-                    + sub.start.milliseconds / 1000
-                )
-                end = (
-                    sub.end.hours * 3600
-                    + sub.end.minutes * 60
-                    + sub.end.seconds
-                    + sub.end.milliseconds / 1000
-                )
-                segments.append(
-                    TranscriptionSegment(
-                        start=start,
-                        end=end,
-                        text=sub.text.replace('\n', ' ').strip(),
-                        confidence=1.0
-                    )
-                )
-        finally:
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
-
-        if source_language.lower() != target_language.lower():
-            job["status"] = "translating"
-            job["progress"] = 40
-            segments = await video_service.translation_service.translate_segments(
-                segments, source_language, target_language
-            )
-
-        job["status"] = "generating_subtitles"
-        job["progress"] = 55
-
-        final_transcription = TranscriptionResult(
-            text=" ".join([seg.text for seg in segments]),
-            segments=segments,
-            detected_language=source_language,
-            confidence=1.0
-        )
-
-        # Align against the language of the burned text
-        align_language = target_language or source_language or "de"
-        result_video_bytes = await _render_final_video(
-            job, video_data, final_transcription, align_language
-        )
-
-        job["status"] = "completed"
-        job["progress"] = 100
-        job["result_video"] = result_video_bytes
-        job["completed_at"] = datetime.now().isoformat()
-
-        del job["video_data"]
-        if "srt_content" in job:
-            del job["srt_content"]
-
-        logger.info(f"Burn-subtitles job completed successfully: {job_id}")
-
-    except Exception as e:
-        logger.error(f"Error burning subtitles for job {job_id}: {str(e)}")
-        if job_id in active_jobs:
-            active_jobs[job_id]["status"] = "failed"
-            active_jobs[job_id]["error"] = str(e)
-            active_jobs[job_id]["progress"] = 0
-
-async def process_video_background(job_id: str, video_data: bytes, target_language: str, source_language: Optional[str]):
-    """Background task for video processing"""
-    try:
-        job = active_jobs[job_id]
-        
-        job["progress"] = 20
-        job["status"] = "extracting_audio"
-        
-        async with video_service.temporary_file(suffix=".mp4") as temp_video_path:
-            with open(temp_video_path, 'wb') as f:
-                f.write(video_data)
-            
-            async with video_service.temporary_file(suffix=".wav") as temp_audio_path:
-                await video_service._extract_audio(temp_video_path, temp_audio_path)
-                
-                job["progress"] = 50
-                job["status"] = "transcribing"
-                
-                logger.info(f"Starting transcription for job {job_id}")
-                transcription_result = await video_service.transcription_service.transcribe_audio(
-                    temp_audio_path, 
-                    language=source_language
-                )
-                
-                logger.info(f"Transcription completed for job {job_id}. Segments: {len(transcription_result.segments)}, Text length: {len(transcription_result.text)}")
-                
-                # detect language if not provided
-                if not source_language:
-                    source_language = transcription_result.detected_language or "en"
-                
-                # store transcription result for user review
-                job["transcription_result"] = {
-                    "text": transcription_result.text,
-                    "segments": [
-                        {
-                            "start": seg.start,
-                            "end": seg.end,
-                            "text": seg.text,
-                            "confidence": seg.confidence
-                        } for seg in transcription_result.segments
-                    ],
-                    "detected_language": transcription_result.detected_language,
-                    "confidence": transcription_result.confidence
-                }
-                job["source_language"] = source_language
-                job["status"] = "transcription_complete"
-                job["progress"] = 60
-                
-                logger.info(f"Transcription completed for job {job_id}, waiting for user review")
-                
-    except Exception as e:
-        logger.error(f"Error processing video {job_id}: {str(e)}")
-        if job_id in active_jobs:
-            active_jobs[job_id]["status"] = "failed"
-            active_jobs[job_id]["error"] = str(e)
-            active_jobs[job_id]["progress"] = 0
 
 @app.get("/status/{job_id}")
 async def get_job_status(job_id: str):
@@ -708,22 +445,23 @@ async def get_job_status(job_id: str):
     try:
         if job_id not in active_jobs:
             raise HTTPException(status_code=404, detail="Job not found")
-        
+
         job = active_jobs[job_id]
-        
         return {
             "job_id": job_id,
             "status": job["status"],
-            "progress": job["progress"],
-            "message": job.get("error", ""),
+            "progress": job.get("progress") or 0,
+            "message": job.get("error") or job.get("message") or "",
             "filename": job.get("filename", ""),
             "karaoke": bool(job.get("karaoke", False)),
-            "has_word_timings": bool(job.get("word_timings")),
+            "has_word_timings": bool(job.get("has_word_timings") or job.get("word_timings")),
         }
-        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error getting job status: {str(e)}")
+        logger.error("Error getting job status: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/transcription/{job_id}")
 async def get_transcription(job_id: str):
@@ -731,128 +469,64 @@ async def get_transcription(job_id: str):
     try:
         if job_id not in active_jobs:
             raise HTTPException(status_code=404, detail="Job not found")
-        
+
         job = active_jobs[job_id]
-        
         if job["status"] != "transcription_complete":
             raise HTTPException(status_code=400, detail="Transcription not ready for review")
-        
+
+        result = job.get("transcription_result")
+        if not result and job.get("transcription_key"):
+            result = json.loads(media_store.get_bytes(job["transcription_key"]).decode("utf-8"))
+        if not result:
+            raise HTTPException(status_code=404, detail="Transcription not found")
+
         return {
             "job_id": job_id,
-            "transcription": job["transcription_result"],
-            "source_language": job["source_language"],
-            "target_language": job["target_language"],
-            "filename": job["filename"]
+            "transcription": result,
+            "source_language": job.get("source_language"),
+            "target_language": job.get("target_language"),
+            "filename": job.get("filename"),
         }
-        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error getting transcription: {str(e)}")
+        logger.error("Error getting transcription: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/transcription/{job_id}/continue")
 async def continue_with_transcription(
     job_id: str,
     background_tasks: BackgroundTasks,
-    transcription: dict
+    transcription: dict,
 ):
-    """Continue processing with edited transcription"""
+    """Continue processing with edited transcription (starts align/burn stage)."""
     try:
         if job_id not in active_jobs:
             raise HTTPException(status_code=404, detail="Job not found")
-        
+
         job = active_jobs[job_id]
-        
         if job["status"] != "transcription_complete":
             raise HTTPException(status_code=400, detail="Job not ready for transcription continuation")
-        
-        # start background processing with edited transcription
-        background_tasks.add_task(
-            continue_processing_after_transcription,
-            job_id,
-            transcription
-        )
-        
-        logger.info(f"Continuing processing with edited transcription for job: {job_id}")
-        
+
+        if not isinstance(transcription, dict) or not transcription.get("segments"):
+            raise HTTPException(status_code=400, detail="Edited transcription with segments is required")
+
+        key = pipeline.persist_transcription(job_id, transcription)
+        job_store.update(job_id, transcription_key=key, status="queued_align", progress=65, error="")
+        background_tasks.add_task(_run_pipeline_stage, job_id, "align_burn")
+        logger.info("Continuing with edited transcription for job %s", job_id)
         return {
             "job_id": job_id,
             "status": "processing_continued",
-            "message": "Processing continued with edited transcription"
+            "message": "Processing continued with edited transcription",
         }
-        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error continuing with transcription: {str(e)}")
+        logger.error("Error continuing with transcription: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-async def continue_processing_after_transcription(job_id: str, edited_transcription: dict):
-    """Continue processing after user has reviewed/edited transcription"""
-    try:
-        job = active_jobs[job_id]
-        
-        from models.requests import TranscriptionResult, TranscriptionSegment
-        
-        segments = [
-            TranscriptionSegment(
-                start=seg["start"],
-                end=seg["end"], 
-                text=seg["text"],
-                confidence=seg.get("confidence")
-            ) for seg in edited_transcription["segments"]
-        ]
-        
-        transcription_result = TranscriptionResult(
-            text=edited_transcription["text"],
-            segments=segments,
-            detected_language=edited_transcription.get("detected_language"),
-            confidence=edited_transcription.get("confidence")
-        )
-        
-        job["status"] = "translating"
-        job["progress"] = 70
-        
-        source_language = job["source_language"]
-        target_language = job["target_language"]
-        
-        if source_language != target_language:
-            translated_segments = await video_service.translation_service.translate_segments(
-                transcription_result.segments, source_language, target_language
-            )
-            
-            final_transcription = TranscriptionResult(
-                text=" ".join([segment.text for segment in translated_segments]),
-                segments=translated_segments,
-                detected_language=source_language,
-                confidence=transcription_result.confidence
-            )
-        else:
-            final_transcription = transcription_result
-        
-        job["status"] = "generating_subtitles"
-        job["progress"] = 80
-        
-        video_data = job["video_data"]
-        align_language = target_language or source_language or "de"
-        result_video_bytes = await _render_final_video(
-            job, video_data, final_transcription, align_language
-        )
-        
-        job["status"] = "completed"
-        job["progress"] = 100
-        job["result_video"] = result_video_bytes
-        job["completed_at"] = datetime.now().isoformat()
-        
-        del job["video_data"]
-        if "transcription_result" in job:
-            del job["transcription_result"]
-        
-        logger.info(f"Job completed successfully: {job_id}")
-        
-    except Exception as e:
-        logger.error(f"Error continuing processing for job {job_id}: {str(e)}")
-        if job_id in active_jobs:
-            active_jobs[job_id]["status"] = "failed"
-            active_jobs[job_id]["error"] = str(e)
-            active_jobs[job_id]["progress"] = 0
 
 @app.get("/word-timings/{job_id}")
 async def get_word_timings(job_id: str):
@@ -867,10 +541,22 @@ async def get_word_timings(job_id: str):
             raise HTTPException(status_code=400, detail="Word timings not ready yet")
 
         word_timings = job.get("word_timings") or []
-        cues = video_service.karaoke_service.build_cues(word_timings)
-        layout = job.get("karaoke_layout")
+        stored = None
+        if job.get("word_timings_key"):
+            try:
+                stored = json.loads(media_store.get_bytes(job["word_timings_key"]).decode("utf-8"))
+            except Exception:
+                stored = None
+        if isinstance(stored, dict) and stored.get("words"):
+            word_timings = stored.get("words") or word_timings
+            cues = stored.get("cues") or video_service.karaoke_service.build_cues(word_timings)
+            layout = stored.get("layout") or job.get("karaoke_layout")
+            cue_rules = stored.get("cue_rules") or video_service.karaoke_service.cue_rules()
+        else:
+            cues = video_service.karaoke_service.build_cues(word_timings)
+            layout = job.get("karaoke_layout")
+            cue_rules = video_service.karaoke_service.cue_rules()
         if not layout:
-            # Recompute fit if layout was not stored (e.g. older in-memory jobs)
             ks = video_service.karaoke_service
             play_x = int(ks.style.play_res_x or 1920)
             play_y = int(ks.style.play_res_y or 1080)
@@ -884,7 +570,7 @@ async def get_word_timings(job_id: str):
             "cue_count": len(cues),
             "words": word_timings,
             "cues": cues,
-            "cue_rules": video_service.karaoke_service.cue_rules(),
+            "cue_rules": cue_rules,
             "layout": layout,
         }
     except HTTPException:

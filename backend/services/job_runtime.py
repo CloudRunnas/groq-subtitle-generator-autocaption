@@ -71,6 +71,13 @@ class JobRuntime:
                 data["word_timings"] = payload.get("words", payload if isinstance(payload, list) else [])
             except Exception as e:
                 logger.warning("Could not load word timings for %s: %s", job_id, e)
+        if "transcription_result" not in data and data.get("transcription_key"):
+            try:
+                import json
+                raw = self.media.get_bytes(data["transcription_key"])
+                data["transcription_result"] = json.loads(raw.decode("utf-8"))
+            except Exception as e:
+                logger.warning("Could not load transcription for %s: %s", job_id, e)
         return MutableJob(self, job_id, data)
 
     def __setitem__(self, job_id: str, value: Dict[str, Any]) -> None:
@@ -93,6 +100,17 @@ class JobRuntime:
                 payload = json.dumps({"words": blobs["word_timings"]}).encode("utf-8")
                 self.media.put_bytes(key, payload, "application/json")
                 value = {**value, "word_timings_key": key, "has_word_timings": bool(blobs["word_timings"])}
+            if "transcription_result" in blobs and blobs["transcription_result"] is not None:
+                import json
+                key = value.get("transcription_key") or self.media.new_key(
+                    job_id, "meta", "transcription.json"
+                )
+                self.media.put_bytes(
+                    key,
+                    json.dumps(blobs["transcription_result"]).encode("utf-8"),
+                    "application/json",
+                )
+                value = {**value, "transcription_key": key}
 
         meta = {k: v for k, v in value.items() if k not in BLOB_KEYS}
         meta["job_id"] = job_id
@@ -139,6 +157,13 @@ class JobRuntime:
                 k = full.get("word_timings_key") or self.media.new_key(job_id, "meta", "word_timings.json")
                 self.media.put_bytes(k, json.dumps({"words": value or []}).encode("utf-8"), "application/json")
                 self.store.update(job_id, word_timings_key=k, has_word_timings=bool(value))
+            elif key == "transcription_result" and value is not None:
+                import json
+                k = full.get("transcription_key") or self.media.new_key(
+                    job_id, "meta", "transcription.json"
+                )
+                self.media.put_bytes(k, json.dumps(value).encode("utf-8"), "application/json")
+                self.store.update(job_id, transcription_key=k)
             return
         try:
             self.store.update(job_id, **{key: value})

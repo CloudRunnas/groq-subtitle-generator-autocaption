@@ -54,3 +54,17 @@ def test_presign_get_none_without_s3():
 
     store = MediaStore(Settings())
     assert store.presign_get("jobs/j1/output/result.mp4") is None
+
+
+def test_download_file_copies_local(tmp_path):
+    class Settings:
+        media_bucket = ""
+        aws_region = "eu-central-1"
+        media_local_dir = str(tmp_path / "media")
+
+    store = MediaStore(Settings())
+    key = "jobs/j1/input/v.mp4"
+    store.put_bytes(key, b"video-bytes", "video/mp4")
+    dest = tmp_path / "out.mp4"
+    store.download_file(key, dest)
+    assert dest.read_bytes() == b"video-bytes"

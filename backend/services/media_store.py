@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import logging
-import uuid
+import shutil
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +96,30 @@ class MediaStore:
             Params=params,
             ExpiresIn=expires,
         )
+
+    def download_file(self, key: str, dest) -> Path:
+        """Stream an object to disk without loading it entirely into RAM."""
+        dest_path = Path(dest)
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        if self.use_s3:
+            self._s3.download_file(self.bucket, key, str(dest_path))
+            return dest_path
+        src = self.local_root / key
+        if str(src.resolve()) != str(dest_path.resolve()):
+            shutil.copy2(src, dest_path)
+        return dest_path
+
+    def upload_file(self, key: str, src, content_type: str = "application/octet-stream") -> str:
+        src_path = Path(src)
+        if self.use_s3:
+            extra = {"ContentType": content_type} if content_type else {}
+            self._s3.upload_file(str(src_path), self.bucket, key, ExtraArgs=extra)
+            return key
+        dest = self.local_root / key
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if str(src_path.resolve()) != str(dest.resolve()):
+            shutil.copy2(src_path, dest)
+        return key
 
     def local_path(self, key: str) -> Path:
         return self.local_root / key

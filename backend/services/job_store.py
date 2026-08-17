@@ -162,7 +162,13 @@ class DynamoJobStore(JobStore):
         status = job.get("status") or "uploaded"
         tenant_id = job.get("tenant_id") or "default"
         # Strip large in-memory blobs — only S3 keys belong in DDB
-        skip = {"video_data", "result_video", "srt_content", "word_timings"}
+        skip = {
+            "video_data",
+            "result_video",
+            "srt_content",
+            "word_timings",
+            "transcription_result",
+        }
         item = {
             "PK": self._pk(job_id),
             "SK": "META",
@@ -205,6 +211,7 @@ class DynamoJobStore(JobStore):
             "result_video_key": item.get("result_video_key"),
             "word_timings_key": item.get("word_timings_key"),
             "srt_key": item.get("srt_key"),
+            "transcription_key": item.get("transcription_key"),
             "source_language": item.get("source_language"),
             "target_language": item.get("target_language"),
             "window_size": item.get("window_size"),
