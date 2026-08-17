@@ -75,6 +75,25 @@ def _acao_values(headers: dict) -> list[str]:
     return found
 
 
+def _content_type(headers: dict) -> str:
+    for key, value in headers.items():
+        if key.lower() == "content-type":
+            return value
+    return ""
+
+
+def _assert_json_body(headers: dict, body: bytes) -> dict:
+    ctype = _content_type(headers)
+    snippet = body[:240]
+    assert "application/json" in ctype.lower(), (
+        f"expected application/json, got {ctype!r} body={snippet!r}"
+    )
+    assert not body.lstrip().startswith(b"<!DOCTYPE"), (
+        f"API returned HTML instead of JSON: {snippet!r}"
+    )
+    return json.loads(body.decode())
+
+
 def _assert_cors_ok(headers: dict, origin: str) -> None:
     raw = []
     for key, value in headers.items():
@@ -92,7 +111,7 @@ def _assert_cors_ok(headers: dict, origin: str) -> None:
 def test_health_ok():
     status, headers, body = _request("/health", headers={"Origin": _origin()})
     assert status == 200, body
-    payload = json.loads(body.decode())
+    payload = _assert_json_body(headers, body)
     assert payload.get("status") == "ok"
     _assert_cors_ok(headers, _origin())
 
@@ -101,7 +120,7 @@ def test_templates_list_public_and_cors():
     origin = _origin()
     status, headers, body = _request("/styles/templates", headers={"Origin": origin})
     assert status == 200, body
-    payload = json.loads(body.decode())
+    payload = _assert_json_body(headers, body)
     assert isinstance(payload.get("templates"), list)
     assert payload["templates"], "expected bootstrap style templates"
     _assert_cors_ok(headers, origin)
@@ -111,10 +130,13 @@ def test_fonts_and_stroke_previews_public():
     origin = _origin()
     fonts_status, fonts_headers, fonts_body = _request("/styles/fonts", headers={"Origin": origin})
     assert fonts_status == 200, fonts_body
+    fonts = _assert_json_body(fonts_headers, fonts_body)
+    assert isinstance(fonts.get("fonts"), list)
     _assert_cors_ok(fonts_headers, origin)
 
     prev_status, prev_headers, prev_body = _request("/styles/stroke-previews", headers={"Origin": origin})
     assert prev_status == 200, prev_body
+    _assert_json_body(prev_headers, prev_body)
     _assert_cors_ok(prev_headers, origin)
 
 
@@ -140,7 +162,7 @@ def test_protected_route_without_key_is_401():
         data=b"{}",
     )
     assert status == 401, body
-    payload = json.loads(body.decode())
+    payload = _assert_json_body(headers, body)
     assert "API key" in payload.get("detail", "")
     _assert_cors_ok(headers, _origin())
 
@@ -153,6 +175,8 @@ def test_presign_without_key_is_401():
         data=b'{"filename":"clip.mp4","content_type":"video/mp4"}',
     )
     assert status == 401, body
+    payload = _assert_json_body(headers, body)
+    assert "API key" in payload.get("detail", "")
     _assert_cors_ok(headers, _origin())
 
 

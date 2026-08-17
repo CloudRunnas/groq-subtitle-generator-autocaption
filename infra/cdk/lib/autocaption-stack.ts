@@ -287,10 +287,47 @@ function handler(event) {
 `),
     });
 
+    // SPA deep links have no file extension. Rewrite them to index.html on the
+    // default (S3) behavior only — never on /api*. Do not use distribution-wide
+    // 403→index.html: Function URL IAM 403s would become HTML 200 and hide API errors.
+    const spaFallback = new cloudfront.Function(this, 'SpaFallback', {
+      code: cloudfront.FunctionCode.fromInline(`
+function handler(event) {
+  var request = event.request;
+  if (request.uri.indexOf('.') === -1) {
+    request.uri = '/index.html';
+  }
+  return request;
+}
+`),
+    });
+
+    // ALL_VIEWER_EXCEPT_HOST_HEADER forwards the viewer Authorization header.
+    // Function URL OAC must send CloudFront's own SigV4 Authorization; a forwarded
+    // viewer header replaces it and the origin returns 403.
+    const apiOriginRequestPolicy = new cloudfront.OriginRequestPolicy(this, 'ApiOriginRequestPolicy', {
+      comment: 'API/CORS headers without Authorization so Function URL OAC can sign',
+      headerBehavior: cloudfront.OriginRequestHeaderBehavior.allowList(
+        'Origin',
+        'Access-Control-Request-Headers',
+        'Access-Control-Request-Method',
+        'Content-Type',
+        'X-API-Key',
+      ),
+      queryStringBehavior: cloudfront.OriginRequestQueryStringBehavior.all(),
+      cookieBehavior: cloudfront.OriginRequestCookieBehavior.none(),
+    });
+
     const distribution = new cloudfront.Distribution(this, 'UiCdn', {
       defaultBehavior: {
         origin: new origins.S3Origin(uiBucket, { originAccessIdentity: oai }),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        functionAssociations: [
+          {
+            function: spaFallback,
+            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+          },
+        ],
       },
       additionalBehaviors: {
         '/api*': {
@@ -300,7 +337,7 @@ function handler(event) {
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
           cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
-          originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+          originRequestPolicy: apiOriginRequestPolicy,
           functionAssociations: [
             {
               function: apiPathRewrite,
@@ -310,14 +347,6 @@ function handler(event) {
         },
       },
       defaultRootObject: 'index.html',
-      errorResponses: [
-        {
-          httpStatus: 403,
-          responseHttpStatus: 200,
-          responsePagePath: '/index.html',
-          ttl: cdk.Duration.seconds(0),
-        },
-      ],
     });
 
     const apiBaseUrl = `https://${distribution.distributionDomainName}/api`;
