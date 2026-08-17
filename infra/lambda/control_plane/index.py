@@ -28,6 +28,7 @@ JOBS_TABLE = os.environ.get("JOBS_TABLE_NAME") or "AutocaptionJobs"
 MEDIA_BUCKET = os.environ.get("MEDIA_BUCKET") or ""
 STYLES_BUCKET = os.environ.get("STYLES_BUCKET") or "autocaption-styles-deadzone-423623826655"
 API_KEY_SECRET = os.environ.get("API_KEY_SECRET_NAME") or "autocaption/backend-api-key"
+ORIGIN_HEADER = "x-autocaption-origin"
 ECS_CLUSTER = os.environ.get("ECS_CLUSTER") or ""
 TRANSCRIBE_TASK = os.environ.get("TRANSCRIBE_TASK_FAMILY") or ""
 BURN_TASK = os.environ.get("BURN_TASK_FAMILY") or ""
@@ -169,6 +170,20 @@ def is_public_request(method: str, path: str) -> bool:
             if path == prefix or path.startswith(prefix + "/"):
                 return True
     return False
+
+
+def expected_origin_secret() -> str:
+    return (os.environ.get("ORIGIN_SECRET") or "").strip()
+
+
+def origin_accepted(headers: Dict[str, str]) -> bool:
+    expected = expected_origin_secret()
+    if not expected:
+        return True
+    provided = (headers.get(ORIGIN_HEADER) or "").strip()
+    if not provided or len(provided) != len(expected):
+        return False
+    return secrets.compare_digest(provided, expected)
 
 
 def extract_api_key(headers: Dict[str, str], query: Dict[str, str]) -> str:
@@ -978,6 +993,9 @@ def handler(event, context):
     headers = event_headers(event)
     query = event_query(event)
     logger.info("%s %s", method, path)
+
+    if not origin_accepted(headers):
+        return respond(403, {"detail": "Forbidden"}, origin=origin)
 
     if method == "OPTIONS" or is_public_request(method, path):
         try:

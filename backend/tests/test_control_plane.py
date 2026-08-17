@@ -189,3 +189,49 @@ def test_templates_get_is_public():
         resp = cp.handler(_event("GET", "/styles/templates"), None)
     assert resp["statusCode"] == 200
     assert json.loads(resp["body"])["templates"] == []
+
+
+def test_origin_secret_rejects_direct_function_url():
+    with patch.dict(os.environ, {"ORIGIN_SECRET": "cf-origin-token-value-32chars____"}):
+        resp = cp.handler(_event("GET", "/health"), None)
+    assert resp["statusCode"] == 403
+    assert json.loads(resp["body"])["detail"] == "Forbidden"
+
+
+def test_origin_secret_allows_cloudfront_header():
+    token = "cf-origin-token-value-32chars____"
+    with patch.dict(os.environ, {"ORIGIN_SECRET": token}):
+        resp = cp.handler(
+            _event("GET", "/health", headers={"x-autocaption-origin": token}),
+            None,
+        )
+    assert resp["statusCode"] == 200
+    assert json.loads(resp["body"])["status"] == "ok"
+
+
+def test_origin_secret_blocks_before_api_key():
+    token = "cf-origin-token-value-32chars____"
+    with patch.dict(os.environ, {"ORIGIN_SECRET": token}), \
+         patch.object(cp, "expected_api_key", return_value="k"):
+        resp = cp.handler(
+            _event("POST", "/jobs/presign", body={"filename": "clip.mp4"}, headers={"x-api-key": "k"}),
+            None,
+        )
+    assert resp["statusCode"] == 403
+
+
+def test_origin_secret_then_api_key_still_required():
+    token = "cf-origin-token-value-32chars____"
+    with patch.dict(os.environ, {"ORIGIN_SECRET": token}), \
+         patch.object(cp, "expected_api_key", return_value="secret-key-value-32chars______"):
+        resp = cp.handler(
+            _event(
+                "POST",
+                "/jobs/presign",
+                body={"filename": "clip.mp4", "content_type": "video/mp4"},
+                headers={"x-autocaption-origin": token},
+            ),
+            None,
+        )
+    assert resp["statusCode"] == 401
+    assert "API key" in json.loads(resp["body"])["detail"]
