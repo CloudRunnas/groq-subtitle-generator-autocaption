@@ -1,0 +1,20 @@
+{
+  "name": "Groq Subtitle Generator",
+  "install": "bash scripts/cloud-agent-install.sh",
+  "terminals": [
+    {
+      "name": "backend",
+      "command": "cd backend && source venv/bin/activate && python main.py",
+      "description": "FastAPI subtitle/karaoke backend on http://localhost:8000 (FFmpeg + WhisperX)."
+    },
+    {
+      "name": "frontend",
+      "command": "npm run dev",
+      "description": "Next.js dev server on http://localhost:3000."
+    }
+  ],
+  "ports": [
+    { "name": "frontend", "port": 3000 },
+    { "name": "backend", "port": 8000 }
+  ]
+}
