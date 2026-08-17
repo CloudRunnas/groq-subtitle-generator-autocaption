@@ -95,6 +95,13 @@ export class AutocaptionStack extends cdk.Stack {
     const oai = new cloudfront.OriginAccessIdentity(this, 'UiOAI');
     uiBucket.grantRead(oai);
 
+    // Keep the original 4-subnet /18 layout. The live VPC was created with CDK
+    // defaults (2 AZs, public+private, no cidrMask) which evenly split 10.0.0.0/16:
+    //   Public  10.0.0.0/18, 10.0.64.0/18
+    //   Private 10.0.128.0/18, 10.0.192.0/18
+    // Switching to public-only + cidrMask 24 tries to replace those subnets with
+    // 10.0.0.0/24 and 10.0.1.0/24, which overlap the existing /18s and fail CFN
+    // (create-before-destroy). Isolated private subnets stay unused; NAT is removed.
     const vpc = new ec2.Vpc(this, 'Vpc', {
       maxAzs: 2,
       natGateways: 0,
@@ -102,7 +109,10 @@ export class AutocaptionStack extends cdk.Stack {
         {
           name: 'Public',
           subnetType: ec2.SubnetType.PUBLIC,
-          cidrMask: 24,
+        },
+        {
+          name: 'Private',
+          subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
         },
       ],
     });
