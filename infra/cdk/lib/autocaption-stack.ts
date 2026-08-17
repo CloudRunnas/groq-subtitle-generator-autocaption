@@ -14,11 +14,13 @@ import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as path from 'path';
 import * as fs from 'fs';
-import { ensureJsonSecret } from './ensure-secret';
+import { ensureJsonSecret, ensureOriginVerifySecret } from './ensure-secret';
 
 const STYLES_BUCKET_NAME = 'autocaption-styles-deadzone-423623826655';
 const BACKEND_API_KEY_SECRET = 'autocaption/backend-api-key';
 const GROQ_API_KEY_SECRET = 'autocaption/groq-api-key';
+const ORIGIN_VERIFY_SECRET = 'autocaption/cf-origin-secret';
+const ORIGIN_VERIFY_HEADER = 'X-Autocaption-Origin';
 
 export class AutocaptionStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -32,6 +34,11 @@ export class AutocaptionStack extends cdk.Stack {
     ensureJsonSecret(this, 'EnsureGroqApiKey', GROQ_API_KEY_SECRET, {
       apiKey: 'REPLACE_ME',
     });
+    const originVerifyToken = ensureOriginVerifySecret(
+      this,
+      'EnsureOriginVerifySecret',
+      ORIGIN_VERIFY_SECRET,
+    );
 
     const apiKeySecret = secretsmanager.Secret.fromSecretNameV2(
       this,
@@ -237,6 +244,7 @@ export class AutocaptionStack extends cdk.Stack {
         ECS_SUBNETS: vpc.publicSubnets.map((s) => s.subnetId).join(','),
         ECS_SECURITY_GROUP: workerSg.securityGroupId,
         KARAOKE_ENABLED_DEFAULT: 'true',
+        ORIGIN_SECRET: originVerifyToken,
       },
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambda/control_plane')),
     });
@@ -269,8 +277,12 @@ export class AutocaptionStack extends cdk.Stack {
       }),
     );
 
+    // NONE: browser POSTs cannot satisfy Function URL IAM/OAC payload signing.
+    // App auth stays X-API-Key. CloudFront injects ORIGIN_SECRET so the raw
+    // Function URL is not a public backdoor. CDK adds InvokeFunctionUrl +
+    // InvokeFunction (required for Function URLs created after Oct 2025).
     const fnUrl = controlFn.addFunctionUrl({
-      authType: lambda.FunctionUrlAuthType.AWS_IAM,
+      authType: lambda.FunctionUrlAuthType.NONE,
     });
 
     const apiPathRewrite = new cloudfront.Function(this, 'ApiPathRewrite', {
@@ -302,11 +314,8 @@ function handler(event) {
 `),
     });
 
-    // ALL_VIEWER_EXCEPT_HOST_HEADER forwards the viewer Authorization header.
-    // Function URL OAC must send CloudFront's own SigV4 Authorization; a forwarded
-    // viewer header replaces it and the origin returns 403.
     const apiOriginRequestPolicy = new cloudfront.OriginRequestPolicy(this, 'ApiOriginRequestPolicy', {
-      comment: 'API/CORS headers without Authorization so Function URL OAC can sign',
+      comment: 'Forward API/CORS headers; Host stays the Function URL domain',
       headerBehavior: cloudfront.OriginRequestHeaderBehavior.allowList(
         'Origin',
         'Access-Control-Request-Headers',
@@ -331,8 +340,11 @@ function handler(event) {
       },
       additionalBehaviors: {
         '/api*': {
-          origin: origins.FunctionUrlOrigin.withOriginAccessControl(fnUrl, {
+          origin: new origins.FunctionUrlOrigin(fnUrl, {
             readTimeout: cdk.Duration.seconds(60),
+            customHeaders: {
+              [ORIGIN_VERIFY_HEADER]: originVerifyToken,
+            },
           }),
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
