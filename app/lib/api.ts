@@ -1,4 +1,4 @@
-/** API helpers for browser → backend (API key + optional warmup). */
+/** API helpers for browser → CloudFront /api (Lambda control plane). */
 function defaultApiBase(): string {
   if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')
@@ -30,20 +30,6 @@ export function apiHeaders(extra?: HeadersInit): HeadersInit {
   return {
     ...(extra || {}),
     ...(key ? { 'X-API-Key': key } : {}),
-  }
-}
-
-export async function warmupBackend(): Promise<void> {
-  // Same-origin /api/warmup via CloudFront. Do not call the Lambda Function URL:
-  // Function URL CORS plus handler ACAO headers get concatenated into an invalid
-  // Access-Control-Allow-Origin value (e.g. "*, https://….cloudfront.net").
-  try {
-    await fetch(`${API_BASE}/warmup`, {
-      method: 'GET',
-      headers: apiHeaders(),
-    })
-  } catch {
-    /* best-effort */
   }
 }
 

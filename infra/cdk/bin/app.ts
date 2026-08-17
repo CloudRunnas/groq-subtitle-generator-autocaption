@@ -11,5 +11,5 @@ const env = {
 
 new AutocaptionStack(app, 'AutocaptionStack', {
   env,
-  description: 'Autocaption UI (S3/CloudFront) + Fargate API + Warmup Lambda + DynamoDB',
+  description: 'Autocaption UI (S3/CloudFront) + Lambda control plane + on-demand Fargate workers',
 });

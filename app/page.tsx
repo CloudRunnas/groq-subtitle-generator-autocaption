@@ -2,7 +2,7 @@
 import React, { useState, useCallback, useRef, memo, useEffect } from 'react'
 import { Upload, Play, Download, Globe, Clock, FileText, CheckCircle, AlertCircle, Eye } from 'lucide-react'
 import StyleTemplatePanel from './components/StyleTemplatePanel'
-import { API_BASE, apiFetch, getStoredApiKey, setStoredApiKey, warmupBackend } from './lib/api'
+import { API_BASE, apiFetch, getStoredApiKey, setStoredApiKey } from './lib/api'
 
 //types for managing the status and file info
 interface JobStatus {
@@ -409,39 +409,84 @@ export default function VideoSubtitleGenerator() {
 
     setIsUploading(true)
     setError('')
-    void warmupBackend()
 
     try {
-      const formData = new FormData()
-      formData.append('file', selectedFile)
       const mode = burnFromWordTimings ? 'burn_words' : burnSubtitles ? 'burn' : 'generate'
-      formData.append('mode', mode)
-      if (mode === 'burn' && selectedSrtFile) {
-        formData.append('srt_file', selectedSrtFile)
-      }
-      if (mode === 'burn_words' && selectedWordTimingsFile) {
-        formData.append('word_timings_file', selectedWordTimingsFile)
-      }
+      const contentType = selectedFile.type || 'video/mp4'
+      let uploadedJobId = ''
+      let uploadedSize = selectedFile.size
 
-      const response = await apiFetch('/upload', {
+      const presignRes = await apiFetch('/jobs/presign', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: selectedFile.name,
+          content_type: contentType,
+          mode,
+        }),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        throw new Error(errorData?.detail || 'Upload failed')
+      let usedDirectUpload = false
+      if (presignRes.ok) {
+        const presign = await presignRes.json()
+        if (presign.use_s3 && presign.upload_url && presign.job_id) {
+          const putRes = await fetch(presign.upload_url, {
+            method: 'PUT',
+            headers: { 'Content-Type': contentType },
+            body: selectedFile,
+          })
+          if (!putRes.ok) {
+            throw new Error(`S3 upload failed (${putRes.status})`)
+          }
+          uploadedJobId = presign.job_id
+          usedDirectUpload = true
+        }
       }
 
-      const data = await response.json()
-      setJobId(data.job_id)
+      let srtFilename: string | null = null
+      let wordTimingsFilename: string | null = null
+      let wordCount: number | undefined
+
+      if (!usedDirectUpload) {
+        const formData = new FormData()
+        formData.append('file', selectedFile)
+        formData.append('mode', mode)
+        if (mode === 'burn' && selectedSrtFile) {
+          formData.append('srt_file', selectedSrtFile)
+        }
+        if (mode === 'burn_words' && selectedWordTimingsFile) {
+          formData.append('word_timings_file', selectedWordTimingsFile)
+        }
+
+        const response = await apiFetch('/upload', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null)
+          throw new Error(errorData?.detail || 'Upload failed')
+        }
+
+        const data = await response.json()
+        uploadedJobId = data.job_id
+        uploadedSize = data.size ?? selectedFile.size
+        srtFilename = data.srt_filename
+        wordTimingsFilename = data.word_timings_filename
+        wordCount = data.word_count
+      } else {
+        srtFilename = selectedSrtFile?.name || null
+        wordTimingsFilename = selectedWordTimingsFile?.name || null
+      }
+
+      setJobId(uploadedJobId)
       setFileInfo({
-        filename: data.filename,
-        size: data.size,
-        mode: data.mode,
-        srt_filename: data.srt_filename,
-        word_timings_filename: data.word_timings_filename,
-        word_count: data.word_count,
+        filename: selectedFile.name,
+        size: uploadedSize,
+        mode,
+        srt_filename: srtFilename,
+        word_timings_filename: wordTimingsFilename,
+        word_count: wordCount,
       })
             
     } catch (err) {
@@ -455,29 +500,38 @@ export default function VideoSubtitleGenerator() {
     setIsProcessing(true)
     
     try {
-      const formData = new FormData()
       const mode = fileInfo?.mode
       const isBurnWords = mode === 'burn_words' || burnFromWordTimings
       const isBurnMode = mode === 'burn' || (burnSubtitles && !isBurnWords)
 
-      // Always send at least one form field — empty FormData breaks multipart parsing (400)
-      formData.append('karaoke', (isBurnWords || karaokeEnabled) ? 'true' : 'false')
+      const payload: Record<string, unknown> = {
+        karaoke: isBurnWords || karaokeEnabled,
+      }
       if (styleTemplateSlug) {
-        formData.append('style_template_slug', styleTemplateSlug)
+        payload.style_template_slug = styleTemplateSlug
       }
 
       if (!isBurnWords) {
-        formData.append('target_language', targetLanguage)
+        payload.target_language = targetLanguage
         if (sourceLanguage) {
-          formData.append('source_language', sourceLanguage)
+          payload.source_language = sourceLanguage
         } else if (isBurnMode) {
           throw new Error('Please select the language of the SRT file')
         }
       }
 
+      if (isBurnMode && selectedSrtFile) {
+        payload.srt_content = await selectedSrtFile.text()
+      }
+      if (isBurnWords && selectedWordTimingsFile) {
+        const raw = JSON.parse(await selectedWordTimingsFile.text())
+        payload.word_timings = raw
+      }
+
       const response = await apiFetch(`/process/${jobId}`, {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
@@ -495,7 +549,7 @@ export default function VideoSubtitleGenerator() {
       setError(err instanceof Error ? err.message : 'Processing failed')
       setIsProcessing(false)
     }
-  }, [targetLanguage, sourceLanguage, fileInfo, burnSubtitles, burnFromWordTimings, karaokeEnabled, styleTemplateSlug])
+  }, [targetLanguage, sourceLanguage, fileInfo, burnSubtitles, burnFromWordTimings, karaokeEnabled, styleTemplateSlug, selectedSrtFile, selectedWordTimingsFile])
 
   const fetchWordTimings = useCallback(async (id: string) => {
     try {

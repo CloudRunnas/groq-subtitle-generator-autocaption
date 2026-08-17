@@ -3,7 +3,6 @@ import { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecr_assets from 'aws-cdk-lib/aws-ecr-assets';
-import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
@@ -15,45 +14,35 @@ import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as path from 'path';
 import * as fs from 'fs';
+import { ensureJsonSecret } from './ensure-secret';
+
+const STYLES_BUCKET_NAME = 'autocaption-styles-deadzone-423623826655';
+const BACKEND_API_KEY_SECRET = 'autocaption/backend-api-key';
+const GROQ_API_KEY_SECRET = 'autocaption/groq-api-key';
 
 export class AutocaptionStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    const stylesBucketName =
-      this.node.tryGetContext('stylesBucketName') ||
-      process.env.AWS_S3_BUCKET ||
-      'autocaption-styles-deadzone-423623826655';
+    const stylesBucketName = STYLES_BUCKET_NAME;
 
-    const backendApiKey =
-      process.env.BACKEND_API_KEY ||
-      // fallback: CDK generates if env not set at deploy time
-      '';
-    const apiKeySecret = backendApiKey
-      ? new secretsmanager.Secret(this, 'BackendApiKey', {
-          secretName: 'autocaption/backend-api-key',
-          secretStringValue: cdk.SecretValue.unsafePlainText(
-            JSON.stringify({ apiKey: backendApiKey }),
-          ),
-        })
-      : new secretsmanager.Secret(this, 'BackendApiKey', {
-          secretName: 'autocaption/backend-api-key',
-          generateSecretString: {
-            secretStringTemplate: JSON.stringify({}),
-            generateStringKey: 'apiKey',
-            excludePunctuation: true,
-            passwordLength: 64,
-          },
-        });
-
-    const groqApiKey = process.env.GROQ_API_KEY || 'REPLACE_ME';
-    const groqSecret = new secretsmanager.Secret(this, 'GroqApiKey', {
-      secretName: 'autocaption/groq-api-key',
-      description: 'GROQ_API_KEY for transcription/translation',
-      secretStringValue: cdk.SecretValue.unsafePlainText(
-        JSON.stringify({ apiKey: groqApiKey }),
-      ),
+    ensureJsonSecret(this, 'EnsureBackendApiKey', BACKEND_API_KEY_SECRET, {
+      apiKey: 'REPLACE_ME',
+    }, 'random');
+    ensureJsonSecret(this, 'EnsureGroqApiKey', GROQ_API_KEY_SECRET, {
+      apiKey: 'REPLACE_ME',
     });
+
+    const apiKeySecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      'BackendApiKeyRef',
+      BACKEND_API_KEY_SECRET,
+    );
+    const groqSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      'GroqApiKeyRef',
+      GROQ_API_KEY_SECRET,
+    );
 
     const jobsTable = new dynamodb.Table(this, 'AutocaptionJobs', {
       tableName: 'AutocaptionJobs',
@@ -108,7 +97,14 @@ export class AutocaptionStack extends cdk.Stack {
 
     const vpc = new ec2.Vpc(this, 'Vpc', {
       maxAzs: 2,
-      natGateways: 1,
+      natGateways: 0,
+      subnetConfiguration: [
+        {
+          name: 'Public',
+          subnetType: ec2.SubnetType.PUBLIC,
+          cidrMask: 24,
+        },
+      ],
     });
 
     const cluster = new ecs.Cluster(this, 'Cluster', { vpc, containerInsights: true });
@@ -119,53 +115,12 @@ export class AutocaptionStack extends cdk.Stack {
       platform: ecr_assets.Platform.LINUX_AMD64,
     });
 
-    const taskDef = new ecs.FargateTaskDefinition(this, 'ApiTask', {
-      memoryLimitMiB: 8192,
-      cpu: 4096,
-      runtimePlatform: {
-        cpuArchitecture: ecs.CpuArchitecture.X86_64,
-        operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
-      },
+    const workerTaskRole = new iam.Role(this, 'WorkerTaskRole', {
+      assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
     });
-
-    const logGroup = new logs.LogGroup(this, 'ApiLogs', {
-      retention: logs.RetentionDays.ONE_WEEK,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
-
-    const container = taskDef.addContainer('api', {
-      image: ecs.ContainerImage.fromDockerImageAsset(backendImage),
-      logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'api', logGroup }),
-      environment: {
-        AWS_REGION: cdk.Stack.of(this).region,
-        AWS_DEFAULT_REGION: cdk.Stack.of(this).region,
-        STYLE_STORAGE: 's3',
-        AWS_S3_BUCKET: stylesBucketName,
-        MEDIA_BUCKET: mediaBucket.bucketName,
-        JOBS_TABLE_NAME: jobsTable.tableName,
-        WHISPERX_DEVICE: 'cpu',
-        KARAOKE_ENABLED_DEFAULT: 'true',
-      },
-      secrets: {
-        BACKEND_API_KEY: ecs.Secret.fromSecretsManager(apiKeySecret, 'apiKey'),
-        GROQ_API_KEY: ecs.Secret.fromSecretsManager(groqSecret, 'apiKey'),
-      },
-      healthCheck: {
-        command: [
-          'CMD-SHELL',
-          'python -c "import urllib.request; urllib.request.urlopen(\'http://127.0.0.1:8000/health\')" || exit 1',
-        ],
-        interval: cdk.Duration.seconds(30),
-        timeout: cdk.Duration.seconds(5),
-        retries: 3,
-        startPeriod: cdk.Duration.seconds(180),
-      },
-    });
-    container.addPortMappings({ containerPort: 8000 });
-
-    jobsTable.grantReadWriteData(taskDef.taskRole);
-    mediaBucket.grantReadWrite(taskDef.taskRole);
-    taskDef.taskRole.addToPrincipalPolicy(
+    jobsTable.grantReadWriteData(workerTaskRole);
+    mediaBucket.grantReadWrite(workerTaskRole);
+    workerTaskRole.addToPrincipalPolicy(
       new iam.PolicyStatement({
         actions: ['s3:GetObject', 's3:PutObject', 's3:ListBucket'],
         resources: [
@@ -174,39 +129,140 @@ export class AutocaptionStack extends cdk.Stack {
         ],
       }),
     );
-    apiKeySecret.grantRead(taskDef.taskRole);
-    groqSecret.grantRead(taskDef.taskRole);
 
-    const service = new ecs.FargateService(this, 'ApiService', {
-      cluster,
-      taskDefinition: taskDef,
-      desiredCount: 1,
-      assignPublicIp: false,
-      circuitBreaker: { rollback: true },
-      enableExecuteCommand: true,
-      minHealthyPercent: 50,
-      maxHealthyPercent: 200,
+    const workerExecRole = new iam.Role(this, 'WorkerExecRole', {
+      assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
+    });
+    workerExecRole.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'),
+    );
+    apiKeySecret.grantRead(workerExecRole);
+    groqSecret.grantRead(workerExecRole);
+
+    const logGroup = new logs.LogGroup(this, 'ApiLogs', {
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
-    const alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
-      vpc,
-      internetFacing: true,
-    });
-    const listener = alb.addListener('Http', { port: 80, open: true });
-    listener.addTargets('ApiTarget', {
-      port: 8000,
-      targets: [service],
-      healthCheck: {
-        path: '/health',
-        healthyHttpCodes: '200',
-        interval: cdk.Duration.seconds(30),
-        healthyThresholdCount: 2,
-        unhealthyThresholdCount: 5,
+    const workerEnv = {
+      AWS_REGION: cdk.Stack.of(this).region,
+      AWS_DEFAULT_REGION: cdk.Stack.of(this).region,
+      STYLE_STORAGE: 's3',
+      AWS_S3_BUCKET: stylesBucketName,
+      MEDIA_BUCKET: mediaBucket.bucketName,
+      JOBS_TABLE_NAME: jobsTable.tableName,
+      WHISPERX_DEVICE: 'cpu',
+      KARAOKE_ENABLED_DEFAULT: 'true',
+    };
+    const workerSecrets = {
+      BACKEND_API_KEY: ecs.Secret.fromSecretsManager(apiKeySecret, 'apiKey'),
+      GROQ_API_KEY: ecs.Secret.fromSecretsManager(groqSecret, 'apiKey'),
+    };
+
+    const transcribeTask = new ecs.FargateTaskDefinition(this, 'TranscribeTask', {
+      memoryLimitMiB: 1024,
+      cpu: 512,
+      taskRole: workerTaskRole,
+      executionRole: workerExecRole,
+      runtimePlatform: {
+        cpuArchitecture: ecs.CpuArchitecture.X86_64,
+        operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
       },
-      deregistrationDelay: cdk.Duration.seconds(30),
+    });
+    transcribeTask.addContainer('worker', {
+      image: ecs.ContainerImage.fromDockerImageAsset(backendImage),
+      logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'transcribe', logGroup }),
+      environment: workerEnv,
+      secrets: workerSecrets,
+      command: [
+        'python',
+        '-c',
+        'raise SystemExit("start via RunTask worker override")',
+      ],
     });
 
-    // Strip /api prefix so UI and API share one HTTPS CloudFront origin (no mixed content / CORS).
+    const burnTask = new ecs.FargateTaskDefinition(this, 'BurnTask', {
+      memoryLimitMiB: 8192,
+      cpu: 4096,
+      taskRole: workerTaskRole,
+      executionRole: workerExecRole,
+      ephemeralStorageGiB: 40,
+      runtimePlatform: {
+        cpuArchitecture: ecs.CpuArchitecture.X86_64,
+        operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
+      },
+    });
+    burnTask.addContainer('worker', {
+      image: ecs.ContainerImage.fromDockerImageAsset(backendImage),
+      logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'burn', logGroup }),
+      environment: workerEnv,
+      secrets: workerSecrets,
+      command: [
+        'python',
+        '-c',
+        'raise SystemExit("start via RunTask worker override")',
+      ],
+    });
+
+    const workerSg = new ec2.SecurityGroup(this, 'WorkerSg', {
+      vpc,
+      allowAllOutbound: true,
+      description: 'One-shot Autocaption Fargate workers (egress only)',
+    });
+
+    const controlFn = new lambda.Function(this, 'ControlPlane', {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'index.handler',
+      timeout: cdk.Duration.seconds(29),
+      memorySize: 512,
+      environment: {
+        JOBS_TABLE_NAME: jobsTable.tableName,
+        MEDIA_BUCKET: mediaBucket.bucketName,
+        STYLES_BUCKET: stylesBucketName,
+        API_KEY_SECRET_NAME: BACKEND_API_KEY_SECRET,
+        ECS_CLUSTER: cluster.clusterName,
+        TRANSCRIBE_TASK_FAMILY: transcribeTask.family,
+        BURN_TASK_FAMILY: burnTask.family,
+        CONTAINER_NAME: 'worker',
+        ECS_SUBNETS: vpc.publicSubnets.map((s) => s.subnetId).join(','),
+        ECS_SECURITY_GROUP: workerSg.securityGroupId,
+        KARAOKE_ENABLED_DEFAULT: 'true',
+      },
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../lambda/control_plane')),
+    });
+    jobsTable.grantReadWriteData(controlFn);
+    mediaBucket.grantReadWrite(controlFn);
+    apiKeySecret.grantRead(controlFn);
+    controlFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['s3:GetObject', 's3:PutObject', 's3:ListBucket'],
+        resources: [
+          `arn:aws:s3:::${stylesBucketName}`,
+          `arn:aws:s3:::${stylesBucketName}/*`,
+        ],
+      }),
+    );
+    controlFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['ecs:RunTask'],
+        resources: [
+          cluster.clusterArn,
+          `arn:aws:ecs:${this.region}:${this.account}:task-definition/${transcribeTask.family}*`,
+          `arn:aws:ecs:${this.region}:${this.account}:task-definition/${burnTask.family}*`,
+        ],
+      }),
+    );
+    controlFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['iam:PassRole'],
+        resources: [workerTaskRole.roleArn, workerExecRole.roleArn],
+      }),
+    );
+
+    const fnUrl = controlFn.addFunctionUrl({
+      authType: lambda.FunctionUrlAuthType.AWS_IAM,
+    });
+
     const apiPathRewrite = new cloudfront.Function(this, 'ApiPathRewrite', {
       code: cloudfront.FunctionCode.fromInline(`
 function handler(event) {
@@ -221,14 +277,6 @@ function handler(event) {
 `),
     });
 
-    const albOrigin = new origins.LoadBalancerV2Origin(alb, {
-      protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
-      httpPort: 80,
-      // CloudFront origin timeouts are capped at 60s without a quota increase.
-      readTimeout: cdk.Duration.seconds(60),
-      keepaliveTimeout: cdk.Duration.seconds(60),
-    });
-
     const distribution = new cloudfront.Distribution(this, 'UiCdn', {
       defaultBehavior: {
         origin: new origins.S3Origin(uiBucket, { originAccessIdentity: oai }),
@@ -236,7 +284,9 @@ function handler(event) {
       },
       additionalBehaviors: {
         '/api*': {
-          origin: albOrigin,
+          origin: origins.FunctionUrlOrigin.withOriginAccessControl(fnUrl, {
+            readTimeout: cdk.Duration.seconds(60),
+          }),
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
           cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
@@ -250,7 +300,6 @@ function handler(event) {
         },
       },
       defaultRootObject: 'index.html',
-      // Only remap S3-style access denials for the SPA; do not rewrite API status codes.
       errorResponses: [
         {
           httpStatus: 403,
@@ -264,40 +313,6 @@ function handler(event) {
     const apiBaseUrl = `https://${distribution.distributionDomainName}/api`;
     const uiBaseUrl = `https://${distribution.distributionDomainName}`;
 
-    container.addEnvironment(
-      'CORS_ORIGINS',
-      `${uiBaseUrl},http://localhost:3000,http://127.0.0.1:3000`,
-    );
-
-    const warmupFn = new lambda.Function(this, 'WarmupLambda', {
-      runtime: lambda.Runtime.PYTHON_3_12,
-      handler: 'index.handler',
-      timeout: cdk.Duration.seconds(15),
-      memorySize: 128,
-      environment: {
-        BACKEND_URL: `http://${alb.loadBalancerDnsName}`,
-      },
-      code: lambda.Code.fromInline(`
-import json, os, urllib.request
-
-def handler(event, context):
-    base = os.environ.get("BACKEND_URL", "").rstrip("/")
-    try:
-        with urllib.request.urlopen(base + "/warmup", timeout=10) as r:
-            body = r.read().decode()
-        return {"statusCode": 200, "headers": {"Content-Type": "application/json"}, "body": body}
-    except Exception as e:
-        return {"statusCode": 502, "headers": {"Content-Type": "application/json"}, "body": json.dumps({"error": str(e)})}
-`),
-    });
-    const warmupUrl = warmupFn.addFunctionUrl({
-      authType: lambda.FunctionUrlAuthType.NONE,
-      cors: {
-        allowedOrigins: ['*'],
-        allowedMethods: [lambda.HttpMethod.GET],
-      },
-    });
-
     const uiOut = path.join(__dirname, '..', '..', '..', 'out');
     if (fs.existsSync(uiOut)) {
       new s3deploy.BucketDeployment(this, 'DeployUi', {
@@ -308,14 +323,14 @@ def handler(event, context):
       });
     }
 
-    new cdk.CfnOutput(this, 'AlbDns', { value: alb.loadBalancerDnsName });
     new cdk.CfnOutput(this, 'ApiBaseUrl', { value: apiBaseUrl });
     new cdk.CfnOutput(this, 'CloudFrontUrl', { value: uiBaseUrl });
-    new cdk.CfnOutput(this, 'WarmupUrl', { value: warmupUrl.url });
     new cdk.CfnOutput(this, 'BackendImageUri', { value: backendImage.imageUri });
     new cdk.CfnOutput(this, 'MediaBucketName', { value: mediaBucket.bucketName });
     new cdk.CfnOutput(this, 'UiBucketName', { value: uiBucket.bucketName });
     new cdk.CfnOutput(this, 'JobsTableName', { value: jobsTable.tableName });
-    new cdk.CfnOutput(this, 'ApiKeySecretArn', { value: apiKeySecret.secretArn });
+    new cdk.CfnOutput(this, 'ClusterName', { value: cluster.clusterName });
+    new cdk.CfnOutput(this, 'TranscribeTaskFamily', { value: transcribeTask.family });
+    new cdk.CfnOutput(this, 'BurnTaskFamily', { value: burnTask.family });
   }
 }

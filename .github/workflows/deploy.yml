@@ -11,7 +11,6 @@ permissions:
 
 env:
   AWS_REGION: eu-central-1
-  STYLES_BUCKET: autocaption-styles-deadzone-423623826655
 
 jobs:
   test-and-deploy:
@@ -32,7 +31,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest starlette pydantic boto3
-          PYTHONPATH=. pytest tests/ -q
+          PYTHONPATH=. pytest tests/ -q --ignore=tests/e2e
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -63,7 +62,7 @@ jobs:
             export NEXT_PUBLIC_API_URL="http://localhost:8000"
           fi
           unset NEXT_PUBLIC_WARMUP_URL
-          echo "Building UI with API=$NEXT_PUBLIC_API_URL (same-origin warmup)"
+          echo "Building UI with API=$NEXT_PUBLIC_API_URL"
           npm run build
 
       - name: Set up Docker Buildx
@@ -74,32 +73,19 @@ jobs:
         env:
           CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
           CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          BACKEND_API_KEY: ${{ secrets.BACKEND_API_KEY }}
         run: |
           npm ci
           npx cdk bootstrap "aws://${CDK_DEFAULT_ACCOUNT}/${CDK_DEFAULT_REGION}" || true
-          npx cdk deploy AutocaptionStack --require-approval never \
-            -c "stylesBucketName=${{ env.STYLES_BUCKET }}"
+          npx cdk deploy AutocaptionStack --require-approval never
 
       - name: Re-bake UI with live API URLs
         run: |
           API=$(aws cloudformation describe-stacks --stack-name AutocaptionStack \
             --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" --output text)
-          echo "Rebuilding UI with API=$API (same-origin warmup)"
+          echo "Rebuilding UI with API=$API"
           NEXT_PUBLIC_API_URL="$API" npm run build
           cd infra/cdk
-          npx cdk deploy AutocaptionStack --require-approval never \
-            -c "stylesBucketName=${{ env.STYLES_BUCKET }}"
-
-      - name: Recycle API tasks for current secrets
-        run: |
-          set -euo pipefail
-          CLUSTER=$(aws ecs list-clusters --query "clusterArns[?contains(@, 'AutocaptionStack-Cluster')]" --output text | awk '{print $1}')
-          SVC=$(aws ecs list-services --cluster "$CLUSTER" --query 'serviceArns[0]' --output text)
-          echo "Recycling $SVC on $CLUSTER"
-          aws ecs update-service --cluster "$CLUSTER" --service "$SVC" --force-new-deployment >/dev/null
-          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SVC"
+          npx cdk deploy AutocaptionStack --require-approval never
 
       - name: Cloud E2E
         working-directory: backend
