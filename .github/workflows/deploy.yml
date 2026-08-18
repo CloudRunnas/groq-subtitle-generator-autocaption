@@ -68,6 +68,31 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Recreate ECS cluster if deleted outside CloudFormation
+        run: |
+          set -euo pipefail
+          NAME=$(aws cloudformation describe-stack-resources \
+            --stack-name AutocaptionStack \
+            --query "StackResources[?ResourceType=='AWS::ECS::Cluster'].PhysicalResourceId" \
+            --output text 2>/dev/null || true)
+          NAME=$(echo "$NAME" | awk 'NF {print; exit}')
+          if [ -z "$NAME" ] || [ "$NAME" = "None" ]; then
+            echo "No ECS cluster tracked by the stack yet; CDK will create it."
+            exit 0
+          fi
+          STATUS=$(aws ecs describe-clusters --clusters "$NAME" \
+            --query "clusters[0].status" --output text 2>/dev/null || true)
+          if [ "$STATUS" = "ACTIVE" ]; then
+            echo "ECS cluster $NAME is ACTIVE"
+            exit 0
+          fi
+          echo "CloudFormation still tracks $NAME but ECS status=${STATUS:-missing}; recreating"
+          aws ecs delete-cluster --cluster "$NAME" >/dev/null 2>&1 || true
+          aws ecs create-cluster \
+            --cluster-name "$NAME" \
+            --settings name=containerInsights,value=enabled
+          echo "Recreated ECS cluster $NAME"
+
       - name: CDK deploy
         working-directory: infra/cdk
         env:
