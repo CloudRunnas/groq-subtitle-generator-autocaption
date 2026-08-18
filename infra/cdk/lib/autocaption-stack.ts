@@ -22,6 +22,20 @@ const GROQ_API_KEY_SECRET = 'autocaption/groq-api-key';
 const ORIGIN_VERIFY_SECRET = 'autocaption/cf-origin-secret';
 const ORIGIN_VERIFY_HEADER = 'X-Autocaption-Origin';
 
+function grantSecretReadByName(grantee: iam.IGrantable, stack: cdk.Stack, secretNames: string[]): void {
+  // fromSecretNameV2 grantRead uses a partial ARN. IAM needs the
+  // Secrets-Manager suffix; a name* resource matches name-<6 chars>.
+  grantee.grantPrincipal.addToPrincipalPolicy(
+    new iam.PolicyStatement({
+      actions: ['secretsmanager:GetSecretValue', 'secretsmanager:DescribeSecret'],
+      resources: secretNames.map(
+        (name) =>
+          `arn:${cdk.Aws.PARTITION}:secretsmanager:${stack.region}:${stack.account}:secret:${name}*`,
+      ),
+    }),
+  );
+}
+
 export class AutocaptionStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -153,8 +167,7 @@ export class AutocaptionStack extends cdk.Stack {
     workerExecRole.addManagedPolicy(
       iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'),
     );
-    apiKeySecret.grantRead(workerExecRole);
-    groqSecret.grantRead(workerExecRole);
+    grantSecretReadByName(workerExecRole, this, [BACKEND_API_KEY_SECRET, GROQ_API_KEY_SECRET]);
 
     const logGroup = new logs.LogGroup(this, 'ApiLogs', {
       retention: logs.RetentionDays.ONE_WEEK,
@@ -250,7 +263,7 @@ export class AutocaptionStack extends cdk.Stack {
     });
     jobsTable.grantReadWriteData(controlFn);
     mediaBucket.grantReadWrite(controlFn);
-    apiKeySecret.grantRead(controlFn);
+    grantSecretReadByName(controlFn, this, [BACKEND_API_KEY_SECRET]);
     controlFn.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ['s3:GetObject', 's3:PutObject', 's3:ListBucket'],

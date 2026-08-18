@@ -4,6 +4,8 @@ import os
 import sys
 from unittest.mock import MagicMock, patch
 
+from botocore.exceptions import ClientError
+
 CONTROL = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "infra", "lambda", "control_plane")
 )
@@ -63,6 +65,21 @@ def test_process_without_key_is_401():
     assert resp["statusCode"] == 401
     payload = json.loads(resp["body"])
     assert "API key" in payload["detail"]
+
+
+def test_secretsmanager_access_denied_is_500_not_401():
+    cp._api_key_cache["value"] = None
+    cp._api_key_cache["expires"] = 0
+    err = ClientError(
+        {"Error": {"Code": "AccessDeniedException", "Message": "not allowed"}},
+        "GetSecretValue",
+    )
+    sm = MagicMock()
+    sm.get_secret_value.side_effect = err
+    with patch.object(cp, "_sm", return_value=sm):
+        resp = cp.handler(_event("POST", "/jobs/presign", body={"filename": "clip.mp4"}), None)
+    assert resp["statusCode"] == 500
+    assert json.loads(resp["body"])["detail"] == "Auth not configured"
 
 
 def test_presign_starts_job_and_returns_put_url():

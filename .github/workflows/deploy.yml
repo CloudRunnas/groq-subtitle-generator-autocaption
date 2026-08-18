@@ -98,7 +98,7 @@ jobs:
           echo "E2E against $API origin=$ORIGIN"
           python -m pip install --upgrade pip
           pip install pytest boto3
-          E2E_BASE_URL="$API" E2E_ORIGIN="$ORIGIN" PYTHONPATH=. pytest tests/e2e -q --tb=short
+          E2E_BASE_URL="$API" E2E_ORIGIN="$ORIGIN" E2E_API_KEY="${{ secrets.E2E_API_KEY }}" PYTHONPATH=. pytest tests/e2e -q --tb=short
 
       - name: Print outputs
         run: |
