@@ -1006,8 +1006,12 @@ def handler(event, context):
 
     try:
         expected = expected_api_key()
-    except Exception as e:
-        logger.exception("Could not load API key")
+    except ClientError as e:
+        code = (e.response or {}).get("Error", {}).get("Code", "ClientError")
+        logger.exception("Could not load API key (%s) from %s", code, API_KEY_SECRET)
+        return respond(500, {"detail": "Auth not configured"}, origin=origin)
+    except Exception:
+        logger.exception("Could not load API key from %s", API_KEY_SECRET)
         return respond(500, {"detail": "Auth not configured"}, origin=origin)
 
     provided = extract_api_key(headers, query)
